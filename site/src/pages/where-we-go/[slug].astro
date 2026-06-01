@@ -1,0 +1,157 @@
+---
+import Base from '../../layouts/Base.astro';
+import { destinations } from '../../destinations.ts';
+
+export function getStaticPaths() {
+  return destinations.map((d) => ({ params: { slug: d.slug }, props: { d } }));
+}
+const { d } = Astro.props;
+const site = Astro.site ?? new URL('https://lanchaboat.com');
+const pageUrl = new URL(`/where-we-go/${d.slug}`, site).href;
+const heroUrl = new URL(`/images/${d.hero}.jpg`, site).href;
+
+const jsonld = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'TouristTrip',
+      name: `${d.name} private boat charter`,
+      description: d.description,
+      image: heroUrl,
+      url: pageUrl,
+      provider: { '@type': 'LocalBusiness', name: 'lancha boat', image: heroUrl,
+        address: { '@type': 'PostalAddress', addressLocality: 'Chicago', addressRegion: 'IL', addressCountry: 'US' },
+        areaServed: 'Chicago, Lake Michigan' },
+      touristType: d.bestFor,
+    },
+    {
+      '@type': 'FAQPage',
+      mainEntity: d.faqs.map((f) => ({
+        '@type': 'Question', name: f.q,
+        acceptedAnswer: { '@type': 'Answer', text: f.a },
+      })),
+    },
+    {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: site.href },
+        { '@type': 'ListItem', position: 2, name: 'Where we go', item: new URL('/where-we-go', site).href },
+        { '@type': 'ListItem', position: 3, name: d.name, item: pageUrl },
+      ],
+    },
+  ],
+};
+---
+<Base title={d.title} description={d.description}>
+  <Fragment slot="head">
+    <meta property="og:image" content={heroUrl} />
+    <script type="application/ld+json" set:html={JSON.stringify(jsonld)} />
+  </Fragment>
+
+  <article class="dest-page">
+    <nav class="crumbs"><a href="/">Home</a> → <a href="/where-we-go">Where we go</a> → <span>{d.name}</span></nav>
+
+    <header class="dp-hero">
+      <div class="dp-hero-text">
+        <span class={`tag pill ${d.cls}`}>{d.tag}</span>
+        <h1>{d.name}</h1>
+        <p class="dp-blurb">{d.blurb}</p>
+        <p class="dp-intro">{d.intro}</p>
+        <a class="btn" href="/book">Check dates &amp; book →</a>
+      </div>
+      <div class="dp-hero-photo">
+        <img src={`/images/${d.hero}.jpg`} alt={`${d.name} aboard Quarters in Chicago`} />
+      </div>
+    </header>
+
+    <div class="dp-body">
+      <div class="dp-main">
+        {d.sections.map((s) => (
+          <section class="dp-sec">
+            <h2>{s.h}</h2>
+            <p>{s.p}</p>
+          </section>
+        ))}
+
+        <section class="dp-sec">
+          <h2>Frequently asked</h2>
+          {d.faqs.map((f) => (
+            <details class="faq">
+              <summary>{f.q}</summary>
+              <p>{f.a}</p>
+            </details>
+          ))}
+        </section>
+      </div>
+
+      <aside class="dp-side">
+        <div class="card side-card">
+          <h3>Best for</h3>
+          <ul>{d.bestFor.map((b) => <li>{b}</li>)}</ul>
+        </div>
+        <div class="card side-card">
+          <h3>Good to know</h3>
+          <ul>{d.goodToKnow.map((g) => <li>{g}</li>)}</ul>
+        </div>
+        <a class="btn pink book-cta" href="/book">Book this trip ⚓</a>
+      </aside>
+    </div>
+
+    <section class="more">
+      <h2 class="sec-head">More places we go</h2>
+      <ul class="dest-list">
+        {destinations.filter((x) => x.slug !== d.slug).map((x) => (
+          <li><a class="dest" href={`/where-we-go/${x.slug}`}>
+            <span class="dest-name">{x.short}</span>
+            <span class={`tag pill ${x.cls}`}>{x.tag}</span>
+            <span class="arrow">→</span>
+          </a></li>
+        ))}
+      </ul>
+    </section>
+  </article>
+
+  <style>
+    .dest-page { max-width: 1000px; margin: 0 auto; padding: 24px; }
+    .crumbs { font-size: 13px; font-weight: 600; color: #8a8470; margin: 8px 0 20px; }
+    .crumbs a { color: var(--blue); text-decoration: none; } .crumbs span { color: var(--ink); }
+
+    .dp-hero { display: grid; grid-template-columns: 1.05fr .95fr; gap: 34px; align-items: center; margin-bottom: 40px; }
+    .dp-hero h1 { font-size: clamp(34px, 5.5vw, 60px); font-weight: 800; margin: 12px 0 6px; }
+    .dp-blurb { font-family: var(--script); color: var(--magenta); font-size: 26px; margin: 0 0 14px; }
+    .dp-intro { font-size: 18px; margin-bottom: 22px; }
+    .dp-hero-photo img { width: 100%; border: 3px solid var(--ink); border-radius: 22px; box-shadow: 8px 8px 0 var(--blue);
+                         display: block; aspect-ratio: 4/5; object-fit: cover; }
+    .tag.pill { display: inline-block; font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: .08em;
+                padding: 5px 12px; border-radius: 999px; border: 2px solid var(--ink); }
+    .pill.blue { background: var(--blue); color: var(--cream); } .pill.gold { background: var(--gold); }
+    .pill.pink { background: var(--pink); } .pill.magenta { background: var(--magenta); color: var(--cream); }
+
+    .dp-body { display: grid; grid-template-columns: 1fr 320px; gap: 36px; }
+    .dp-sec { margin-bottom: 26px; }
+    .dp-sec h2 { font-size: clamp(22px, 3.4vw, 30px); font-weight: 800; margin-bottom: 8px; }
+    .dp-sec p { font-size: 17px; }
+    .faq { border: 2px solid var(--ink); border-radius: 12px; padding: 4px 16px; margin-bottom: 10px; background: #fff; }
+    .faq summary { font-family: var(--display); font-weight: 700; cursor: pointer; padding: 12px 0; font-size: 16px; }
+    .faq p { margin: 0 0 14px; }
+
+    .dp-side { display: flex; flex-direction: column; gap: 16px; align-self: start; position: sticky; top: 90px; }
+    .side-card h3 { font-size: 18px; font-weight: 800; margin-bottom: 10px; }
+    .side-card ul { margin: 0; padding-left: 18px; } .side-card li { margin-bottom: 6px; }
+    .book-cta { text-align: center; }
+
+    .more { margin-top: 50px; }
+    .sec-head { font-size: clamp(24px, 4vw, 34px); font-weight: 800; }
+    .dest-list { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--ink); }
+    .dest-list li { border-bottom: 2px solid var(--ink); }
+    .dest { display: flex; align-items: center; gap: 16px; padding: 16px 8px; text-decoration: none; transition: background .1s ease, padding .1s ease; }
+    .dest:hover { background: #eef0ff; padding-left: 16px; }
+    .dest-name { font-family: var(--display); font-weight: 800; font-size: clamp(22px, 4vw, 40px); color: var(--ink); }
+    .dest .arrow { margin-left: auto; font-size: 26px; font-weight: 800; color: var(--blue); }
+
+    @media (max-width: 860px) {
+      .dp-hero { grid-template-columns: 1fr; } .dp-hero-photo { order: -1; max-width: 440px; }
+      .dp-body { grid-template-columns: 1fr; } .dp-side { position: static; }
+    }
+  </style>
+</Base>

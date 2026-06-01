@@ -1,0 +1,47 @@
+---
+import Base from '../../layouts/Base.astro';
+import { destinations } from '../../destinations.ts';
+const title = 'Where We Go · Chicago Boat Charter Destinations | lancha boat';
+const description =
+  'From the Playpen to the Chicago River — explore where Quarters can take you on Lake Michigan. Private boat charters from Diversey Harbor, Chicago.';
+---
+<Base title={title} description={description}>
+  <section class="wrap intro-sec">
+    <p class="kicker">Chicago · Lake Michigan</p>
+    <h1>Where we go</h1>
+    <p class="lede">Every charter is yours to shape. Here are the spots our crews love most —
+      tap one to see the vibe, what it’s best for, and how to make a day of it aboard <em>Quarters</em>.</p>
+  </section>
+
+  <section class="wrap">
+    <ul class="dest-list">
+      {destinations.map((d) => (
+        <li><a class="dest" href={`/where-we-go/${d.slug}`}>
+          <span class="dest-name">{d.short}</span>
+          <span class={`tag pill ${d.cls}`}>{d.tag}</span>
+          <span class="dest-blurb">{d.blurb}</span>
+          <span class="arrow">→</span>
+        </a></li>
+      ))}
+    </ul>
+    <div class="cta-row"><a class="btn" href="/book">Check dates &amp; book →</a></div>
+  </section>
+
+  <style>
+    .intro-sec { margin-top: 48px; }
+    .kicker { text-transform: uppercase; letter-spacing: .18em; font-weight: 700; font-size: 13px; color: var(--blue); margin: 0 0 12px; }
+    h1 { font-size: clamp(36px, 6vw, 64px); font-weight: 800; }
+    .lede { font-size: 19px; max-width: 620px; }
+    .dest-list { list-style: none; margin: 18px 0 0; padding: 0; border-top: 2px solid var(--ink); }
+    .dest-list li { border-bottom: 2px solid var(--ink); }
+    .dest { display: flex; align-items: center; gap: 16px; padding: 18px 8px; text-decoration: none; transition: background .1s ease, padding .1s ease; flex-wrap: wrap; }
+    .dest:hover { background: #eef0ff; padding-left: 16px; }
+    .dest-name { font-family: var(--display); font-weight: 800; font-size: clamp(24px, 5vw, 46px); color: var(--ink); }
+    .tag.pill { font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: .08em; padding: 5px 12px; border-radius: 999px; border: 2px solid var(--ink); }
+    .pill.blue { background: var(--blue); color: var(--cream); } .pill.gold { background: var(--gold); }
+    .pill.pink { background: var(--pink); } .pill.magenta { background: var(--magenta); color: var(--cream); }
+    .dest-blurb { color: #8a8470; font-size: 15px; }
+    .dest .arrow { margin-left: auto; font-size: 28px; font-weight: 800; color: var(--blue); }
+    .cta-row { margin: 32px 0; }
+  </style>
+</Base>

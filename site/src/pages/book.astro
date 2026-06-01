@@ -1,0 +1,314 @@
+---
+import Base from '../layouts/Base.astro';
+import { ENDPOINT, BLOCKS, MAX_PARTY, DEFAULT_BLOCK_PRICE } from '../config.ts';
+const STEPS = ['Date & time', 'Captain', 'Your details', 'Confirm'];
+---
+<Base title="Book Quarters · lancha boat">
+  <section class="wrap booking">
+    <h1>Book <em>Quarters</em></h1>
+
+    <!-- NUMBERED STEPPER -->
+    <div class="stepper" id="stepper" role="list">
+      {STEPS.map((s, i) => (
+        <div class={`stp${i === 0 ? ' active' : ''}`} data-step={i + 1} role="listitem">
+          <span class="dot">{i + 1}</span>
+          <span class="lbl">{s}</span>
+        </div>
+      ))}
+    </div>
+    <p class="step-caption" id="caption">Step 1 of 4 · Date &amp; time</p>
+
+    <!-- STEP 1 -->
+    <div class="card panel" data-panel="1">
+      <h2>Pick your date &amp; time</h2>
+      <label class="fld">Charter date
+        <input type="date" id="date" />
+      </label>
+      <p class="hint" id="blocks-hint">📅 Pick a date to see availability &amp; pricing.</p>
+      <div id="blocks" class="block-options">
+        {BLOCKS.map((b) => (
+          <button type="button" class="block-card" data-block={b.id} disabled>
+            <span class="bl">{b.label}</span>
+            <span class="bt">{b.time}</span>
+            <span class="bp" data-price>$—</span>
+          </button>
+        ))}
+      </div>
+      <div class="nav-row">
+        <span></span>
+        <button class="btn" id="to2" disabled>Continue →</button>
+      </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="card panel hidden" data-panel="2">
+      <h2>Captain</h2>
+      <p class="muted">A USCG-licensed captain is required. Choose one:</p>
+      <label class="choice"><input type="radio" name="cap" value="need" checked />
+        <span><strong>I need a captain</strong><br /><span class="muted">We'll line one up from our roster — usually $100–$150/hr, paid separately.</span></span></label>
+      <label class="choice"><input type="radio" name="cap" value="have" />
+        <span><strong>I'll bring my own captain</strong><br /><span class="muted">We'll confirm their USCG credentials before the trip.</span></span></label>
+      <div class="nav-row">
+        <button class="btn-ghost-dark" data-back>← Back</button>
+        <button class="btn" id="to3">Continue →</button>
+      </div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div class="card panel hidden" data-panel="3">
+      <h2>Your details</h2>
+      <div class="row">
+        <label class="fld">First name<input id="firstName" required /></label>
+        <label class="fld">Last name<input id="lastName" required /></label>
+      </div>
+      <div class="row">
+        <label class="fld">Email<input id="primaryEmail" type="email" required /></label>
+        <label class="fld">Phone<input id="phone" inputmode="tel" /></label>
+      </div>
+      <label class="fld">Party size<select id="partySize"></select></label>
+      <label class="fld">Guest emails <span class="muted">(enter now if you have them — otherwise you can add them later)</span>
+        <textarea id="guestEmails" rows="2" placeholder="one email per line"></textarea>
+      </label>
+      <label class="fld">Add-ons / requests <span class="muted">(optional)</span>
+        <input id="addOns" placeholder="water toys, extra hour, occasion…" />
+      </label>
+      <div class="nav-row">
+        <button class="btn-ghost-dark" data-back>← Back</button>
+        <button class="btn" id="to4">Review →</button>
+      </div>
+    </div>
+
+    <!-- STEP 4 -->
+    <div class="card panel hidden" data-panel="4">
+      <h2>Confirm your charter</h2>
+      <dl class="review" id="review"></dl>
+      <p class="pay-note">After you confirm, you'll get an email with your charter details and a secure
+        payment link for the charter amount. The captain fee and fuel are billed separately.</p>
+      <div class="nav-row">
+        <button class="btn-ghost-dark" data-back>← Back</button>
+        <button class="btn pink" id="submit">Confirm booking ⚓</button>
+      </div>
+      <p id="result" class="form-msg"></p>
+    </div>
+  </section>
+
+  <script define:vars={{ ENDPOINT, BLOCKS, MAX_PARTY, DEFAULT_BLOCK_PRICE, STEPS }}>
+    const state = { date: '', block: null, blockPrice: 0, captain: 'need' };
+
+    function setStep(step) {
+      document.querySelectorAll('[data-panel]').forEach(p =>
+        p.classList.toggle('hidden', p.dataset.panel !== String(step)));
+      document.querySelectorAll('.stp').forEach(s => {
+        const n = Number(s.dataset.step);
+        s.classList.toggle('active', n === step);
+        s.classList.toggle('done', n < step);
+      });
+      document.getElementById('caption').textContent = `Step ${step} of ${STEPS.length} · ${STEPS[step - 1]}`;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    function currentStep() {
+      return Number([...document.querySelectorAll('[data-panel]')]
+        .find(p => !p.classList.contains('hidden')).dataset.panel);
+    }
+    document.querySelectorAll('[data-back]').forEach(b =>
+      b.addEventListener('click', () => setStep(currentStep() - 1)));
+
+    // party size select
+    const sel = document.getElementById('partySize');
+    for (let i = 1; i <= MAX_PARTY; i++) {
+      const o = document.createElement('option'); o.value = i; o.textContent = i;
+      if (i === 6) o.selected = true; sel.appendChild(o);
+    }
+
+    // step 1: date + live pricing
+    const dateEl = document.getElementById('date');
+    const cards = [...document.querySelectorAll('.block-card')];
+    const hint = document.getElementById('blocks-hint');
+    const to2 = document.getElementById('to2');
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+    dateEl.min = tomorrow.toISOString().slice(0, 10);
+
+    dateEl.addEventListener('change', loadPricing);
+    async function loadPricing() {
+      state.date = dateEl.value; state.block = null; to2.disabled = true;
+      cards.forEach(c => c.classList.remove('sel'));
+      hint.textContent = 'Loading prices…';
+      let prices = { morning: DEFAULT_BLOCK_PRICE, afternoon: DEFAULT_BLOCK_PRICE, night: DEFAULT_BLOCK_PRICE };
+      try {
+        const res = await fetch(ENDPOINT + '?action=pricing&date=' + encodeURIComponent(state.date));
+        const out = await res.json();
+        if (out.ok && out.blocks) prices = out.blocks;
+      } catch (e) {}
+      cards.forEach(c => {
+        const id = c.dataset.block;
+        c.querySelector('[data-price]').textContent = '$' + (prices[id] ?? DEFAULT_BLOCK_PRICE);
+        c.disabled = false;
+      });
+      hint.textContent = '👇 Choose your time block';
+    }
+    cards.forEach(c => c.addEventListener('click', () => {
+      cards.forEach(x => x.classList.remove('sel'));
+      c.classList.add('sel');
+      state.block = BLOCKS.find(b => b.id === c.dataset.block);
+      state.blockPrice = Number(c.querySelector('[data-price]').textContent.replace('$', '')) || DEFAULT_BLOCK_PRICE;
+      to2.disabled = false;
+    }));
+
+    to2.addEventListener('click', () => setStep(2));
+    document.getElementById('to3').addEventListener('click', () => {
+      state.captain = document.querySelector('input[name=cap]:checked').value; setStep(3);
+    });
+    document.getElementById('to4').addEventListener('click', () => {
+      const first = document.getElementById('firstName').value.trim();
+      const last = document.getElementById('lastName').value.trim();
+      const email = document.getElementById('primaryEmail').value.trim();
+      if (!first || !last || !email) { alert('Please add your first name, last name, and email.'); return; }
+      renderReview(); setStep(4);
+    });
+
+    function gatherGuests() {
+      return document.getElementById('guestEmails').value
+        .split(/[\n,]/).map(s => s.trim()).filter(Boolean).map(e => ({ name: '', email: e }));
+    }
+    function renderReview() {
+      const rows = [
+        ['Date', state.date],
+        ['Time', state.block.label + ' · ' + state.block.time],
+        ['Boat price', '$' + state.blockPrice],
+        ['Captain', state.captain === 'need' ? 'We arrange one ($100–$150/hr)' : 'Bringing my own'],
+        ['Name', document.getElementById('firstName').value + ' ' + document.getElementById('lastName').value],
+        ['Email', document.getElementById('primaryEmail').value],
+        ['Party size', document.getElementById('partySize').value],
+      ];
+      const addOns = document.getElementById('addOns').value.trim();
+      if (addOns) rows.push(['Add-ons', addOns]);
+      const guests = gatherGuests();
+      if (guests.length) rows.push(['Guest waivers', guests.length + ' email(s)']);
+      document.getElementById('review').innerHTML =
+        rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+    }
+
+    document.getElementById('submit').addEventListener('click', async () => {
+      const btn = document.getElementById('submit');
+      const msg = document.getElementById('result');
+      btn.disabled = true; msg.textContent = 'Booking…'; msg.className = 'form-msg';
+      const payload = {
+        action: 'newBooking', charterDate: state.date, timeBlock: state.block.id,
+        firstName: document.getElementById('firstName').value.trim(),
+        lastName: document.getElementById('lastName').value.trim(),
+        primaryName: (document.getElementById('firstName').value.trim() + ' ' +
+                      document.getElementById('lastName').value.trim()).trim(),
+        primaryEmail: document.getElementById('primaryEmail').value.trim(),
+        phone: document.getElementById('phone').value.trim(),
+        partySize: document.getElementById('partySize').value,
+        captainStatus: state.captain, addOns: document.getElementById('addOns').value.trim(),
+        amountPaid: state.blockPrice, guests: gatherGuests(),
+      };
+      try {
+        const res = await fetch(ENDPOINT, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload),
+        });
+        const out = await res.json();
+        if (out.ok) {
+          document.querySelector('[data-panel="4"]').innerHTML =
+            `<h2>You're booked! 🎉</h2>
+             <p>Confirmation <strong>${out.bookingId}</strong> is on its way to your inbox — dock directions,
+             the charter agreement, the guest waiver, and your secure payment link.</p>
+             <p class="muted">${payload.captainStatus === 'need'
+               ? "We're already reaching out to captains and will confirm one shortly." : ''}</p>
+             <a class="btn" href="/">← Back to home</a>`;
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else { throw new Error(out.error || 'error'); }
+      } catch (err) {
+        msg.textContent = "Something went wrong — email lalanchacharters@gmail.com and we'll sort it out.";
+        msg.className = 'form-msg err'; btn.disabled = false;
+      }
+    });
+  </script>
+
+  <style>
+    .booking { margin-top: 36px; }
+    .booking h1 { font-size: clamp(34px, 6vw, 56px); font-weight: 800; margin-bottom: 18px; }
+    .booking h1 em { color: var(--magenta); font-family: var(--script); font-weight: 400; }
+
+    /* numbered stepper */
+    .stepper { display: flex; align-items: flex-start; gap: 0; margin: 8px 0 6px; }
+    .stp { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative; }
+    .stp::before { content: ''; position: absolute; top: 19px; right: 50%; width: 100%; height: 3px; background: var(--ink); z-index: 0; }
+    .stp:first-child::before { display: none; }
+    .stp.active ::before, .stp.done::before {}
+    .dot { position: relative; z-index: 1; width: 40px; height: 40px; border-radius: 50%; background: #fff;
+           border: 3px solid var(--ink); display: grid; place-items: center; font-family: var(--display);
+           font-weight: 800; font-size: 17px; color: var(--ink); }
+    .stp.active .dot { background: var(--blue); color: var(--cream); box-shadow: 0 0 0 4px rgba(68,74,235,.18); }
+    .stp.done .dot { background: var(--gold); color: var(--ink); }
+    .stp.done .dot::after { content: '✓'; }
+    .stp.done .dot { font-size: 0; } .stp.done .dot::after { font-size: 18px; }
+    .lbl { font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: .02em; color: var(--ink); text-align: center; }
+    .stp:not(.active) .lbl { color: #8a8470; }
+    .step-caption { display: none; font-family: var(--display); font-weight: 700; color: var(--blue); margin: 2px 0 18px; }
+
+    .panel { margin-bottom: 20px; }
+    .panel.hidden { display: none; }
+    .panel h2 { font-size: clamp(22px, 4vw, 28px); font-weight: 800; }
+
+    .fld { display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 16px; }
+    .fld .muted { font-weight: 500; }
+    .fld input, .fld select, .fld textarea {
+      padding: 14px; border: 2.5px solid var(--ink); border-radius: 12px; font-size: 16px; font-family: var(--sans);
+      color: var(--ink); background: #fff; box-shadow: 3px 3px 0 rgba(51,51,51,.15);
+    }
+    .fld input:focus, .fld select:focus, .fld textarea:focus { outline: none; border-color: var(--blue); box-shadow: 4px 4px 0 var(--blue); }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    .hint { font-family: var(--display); font-weight: 700; font-size: 14px; color: var(--blue); margin: 2px 0 10px; }
+    .block-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .block-card {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left;
+      padding: 18px; border: 2.5px solid var(--ink); border-radius: 16px; background: #fff; cursor: pointer;
+      box-shadow: 4px 4px 0 var(--ink); transition: transform .07s ease, box-shadow .07s ease, background .1s ease;
+      font-family: var(--sans);
+    }
+    .block-card:not([disabled]):hover { transform: translate(-2px,-2px); box-shadow: 6px 6px 0 var(--ink); }
+    .block-card[disabled] { opacity: .5; cursor: not-allowed; box-shadow: none; }
+    .block-card.sel { background: var(--gold); transform: translate(2px,2px); box-shadow: 2px 2px 0 var(--ink); }
+    .block-card .bl { font-family: var(--display); font-weight: 800; color: var(--ink); font-size: 20px; }
+    .block-card .bt { font-size: 13px; color: #8a8470; }
+    .block-card .bp { font-family: var(--display); font-weight: 800; color: var(--blue); font-size: 24px; margin-top: 6px; }
+    .block-card.sel .bp { color: var(--ink); }
+
+    .choice { display: flex; gap: 12px; align-items: flex-start; padding: 16px; border: 2.5px solid var(--ink);
+              border-radius: 14px; margin-bottom: 12px; cursor: pointer; background: #fff; box-shadow: 3px 3px 0 rgba(51,51,51,.15); }
+    .choice:has(input:checked) { background: #eef0ff; box-shadow: 4px 4px 0 var(--blue); border-color: var(--blue); }
+    .choice input { margin-top: 4px; width: 18px; height: 18px; accent-color: var(--blue); }
+
+    .nav-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 24px; }
+    .btn-ghost-dark { background: #fff; border: 2.5px solid var(--ink); color: var(--ink); font-family: var(--display); font-weight: 700;
+                      padding: 13px 22px; border-radius: 999px; cursor: pointer; font-size: 15px; box-shadow: 3px 3px 0 var(--ink); }
+    .btn-ghost-dark:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 var(--ink); }
+    #to2[disabled], #to3[disabled], #submit[disabled] { background: #d9d6c6; color: #8a8470; border-color: #b8b4a2; box-shadow: none; }
+
+    .review { display: grid; grid-template-columns: 150px 1fr; gap: 10px 16px; margin: 8px 0 16px;
+              border: 2.5px solid var(--ink); border-radius: 14px; padding: 18px; background: #fff; }
+    .review dt { color: #8a8470; font-size: 14px; font-weight: 700; }
+    .review dd { margin: 0; font-weight: 700; color: var(--ink); }
+    .pay-note { font-size: 14px; background: #eef0ff; border: 2.5px solid var(--blue); border-radius: 14px; padding: 14px; font-weight: 500; }
+    .form-msg { margin-top: 14px; font-size: 15px; min-height: 18px; font-weight: 700; }
+    .form-msg.err { color: var(--magenta); }
+
+    /* mobile */
+    @media (max-width: 720px) {
+      .block-options { grid-template-columns: 1fr; }
+      .row { grid-template-columns: 1fr; }
+      .lbl { display: none; }
+      .step-caption { display: block; }
+      .dot { width: 36px; height: 36px; font-size: 16px; }
+      .stp::before { top: 17px; }
+      .nav-row { flex-direction: column-reverse; align-items: stretch; }
+      .nav-row .btn, .nav-row .btn-ghost-dark { width: 100%; text-align: center; }
+      .nav-row span { display: none; }
+      .review { grid-template-columns: 120px 1fr; }
+    }
+  </style>
+</Base>

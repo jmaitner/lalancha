@@ -1,0 +1,18 @@
+---
+import Base from '../layouts/Base.astro';
+---
+<Base title="Lost at sea · lancha boat" description="Page not found.">
+  <section class="wrap nf">
+    <p class="kicker">404 · lost at sea</p>
+    <h1>This page drifted off.</h1>
+    <p class="lede">The page you’re after isn’t here — but the lake still is.</p>
+    <div class="cta"><a class="btn" href="/">← Back to home</a> <a class="btn gold" href="/book">Book a charter</a></div>
+  </section>
+  <style>
+    .nf { text-align: center; padding: 90px 24px 60px; }
+    .kicker { text-transform: uppercase; letter-spacing: .18em; font-weight: 700; font-size: 13px; color: var(--magenta); }
+    .nf h1 { font-size: clamp(36px, 7vw, 68px); font-weight: 800; margin: 10px 0; }
+    .lede { font-size: 19px; }
+    .cta { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 24px; }
+  </style>
+</Base>

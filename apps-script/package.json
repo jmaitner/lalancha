@@ -1,0 +1,15 @@
+{
+  "name": "apps-script",
+  "version": "1.0.0",
+  "description": "The Google-side \"brain\" for La Lancha charters. Builds the Drive folders, the master spreadsheet, and two Google Forms, then runs the day-to-day automation. Waivers stay on **JotForm** (Google Forms can't do legal e-signatures); JotForm reports signatures back here via the web-app endpoint.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@google/clasp": "^3.3.0"
+  }
+}

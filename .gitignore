@@ -1,0 +1,20 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+.astro/
+
+# raw source media — kept local only; optimized copies live in site/public/images
+Assetts/
+
+# tooling / editor
+.claude/
+.wrangler/
+.DS_Store
+*.log
+
+# secrets / env
+.env
+.dev.vars
+.clasprc.json

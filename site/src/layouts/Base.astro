@@ -1,0 +1,132 @@
+---
+const {
+  title = 'lancha boat · private charters aboard Quarters',
+  description = 'Private boat charters on Lake Michigan aboard Quarters. Good times on water, chill with friends & fam, bring your own whatever — based in Chicago at Diversey Harbor.',
+} = Astro.props;
+const ticker = 'GOOD TIMES → ON WATER  •  CHILL WITH → FRIENDS & FAM  •  BRING YOUR OWN → WHATEVER  •  ';
+const canonical = Astro.url ? new URL(Astro.url.pathname, Astro.site ?? 'https://lanchaboat.com').href : undefined;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    {canonical && <link rel="canonical" href={canonical} />}
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    {canonical && <meta property="og:url" content={canonical} />}
+    <meta name="twitter:card" content="summary_large_image" />
+    <slot name="head" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Zalando+Sans:wght@400;500;600;700&family=Zalando+Sans+Expanded:wght@600;700;800&family=Covered+By+Your+Grace&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <!-- scrolling ticker -->
+    <div class="ticker"><div class="ticker-track">{ticker.repeat(6)}</div></div>
+
+    <header class="nav">
+      <a class="logo" href="/" aria-label="lancha boat home">
+        <span class="logo-lancha">lancha</span><span class="logo-boat">boat</span>
+        <span class="mark" aria-hidden="true">
+          <svg viewBox="0 0 64 64" fill="none"><path d="M14 50C22 30 30 22 50 14" stroke="currentColor" stroke-width="9" stroke-linecap="round"/><path d="M33 14h19v19" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+      </a>
+      <nav>
+        <a href="/#how">How it works</a>
+        <a href="/#inquire">Questions</a>
+        <a class="btn btn-sm" href="/book">Book now</a>
+      </nav>
+    </header>
+
+    <slot />
+
+    <footer class="footer">
+      <div class="foot-logo"><span class="logo-lancha">lancha</span><span class="logo-boat">boat</span></div>
+      <p>Private charters aboard <em>Quarters</em> · Diversey Harbor · K-Dock, Slip 8 · Chicago</p>
+      <p class="muted">Operated under a bareboat / demise charter model in compliance with USCG vessel safety standards.</p>
+    </footer>
+
+    <style is:global>
+      :root {
+        --cream: #FFFDEF;   /* sunrise */
+        --ink:   #333333;   /* 80% blackout */
+        --blue:  #444AEB;   /* chi vice */
+        --pink:  #EC82EA;   /* bazooka */
+        --magenta:#E81C8E;  /* blitz */
+        --gold:  #FFD600;   /* pop of summer */
+        --line:  #e7e3cf;
+        --sans: 'Zalando Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        --display: 'Zalando Sans Expanded', 'Zalando Sans', system-ui, sans-serif;
+        --script: 'Covered By Your Grace', 'Comic Sans MS', cursive;
+      }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body { margin: 0; font-family: var(--sans); color: var(--ink); background: var(--cream); line-height: 1.55; }
+      h1, h2, h3 { font-family: var(--display); line-height: 1.02; letter-spacing: -0.01em; margin: 0 0 12px; }
+      a { color: var(--blue); }
+      .muted { color: #8a8470; }
+      em { font-style: normal; color: var(--magenta); }
+
+      /* ticker */
+      .ticker { background: var(--blue); overflow: hidden; white-space: nowrap; }
+      .ticker-track {
+        display: inline-block; padding: 7px 0; color: var(--cream);
+        font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: .06em;
+        animation: scroll 38s linear infinite;
+      }
+      @keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+      /* logo lockup */
+      .logo { display: inline-flex; align-items: center; gap: 4px; text-decoration: none; }
+      .logo-lancha { font-family: var(--display); font-weight: 800; font-size: 26px; color: var(--ink); letter-spacing: -0.02em; }
+      .logo-boat { font-family: var(--script); font-size: 28px; color: var(--magenta); margin-left: 2px; transform: rotate(-4deg); }
+      .mark { display: inline-block; width: 22px; height: 22px; color: var(--blue); margin-left: 4px; }
+      .mark svg { width: 100%; height: 100%; }
+
+      /* nav */
+      .nav { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px;
+             background: var(--cream); border-bottom: 2px solid var(--ink); position: sticky; top: 0; z-index: 20; }
+      .nav nav { display: flex; align-items: center; gap: 22px; }
+      .nav nav a { color: var(--ink); text-decoration: none; font-weight: 600; font-size: 15px; }
+      .nav nav a:not(.btn):hover { color: var(--blue); }
+      /* keep the CTA button's own colors (more specific than .nav nav a) */
+      .nav nav a.btn { color: var(--cream); }
+      .nav nav a.btn.gold { color: var(--ink); }
+
+      /* buttons */
+      .btn { display: inline-block; background: var(--blue); color: var(--cream); font-family: var(--display); font-weight: 700;
+             padding: 14px 26px; border-radius: 999px; text-decoration: none; border: 2px solid var(--ink); cursor: pointer;
+             font-size: 16px; box-shadow: 3px 3px 0 var(--ink); transition: transform .06s ease, box-shadow .06s ease; }
+      .btn:hover { transform: translate(-1px,-1px); box-shadow: 4px 4px 0 var(--ink); }
+      .btn:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 var(--ink); }
+      .btn-sm { padding: 9px 18px; font-size: 14px; box-shadow: 2px 2px 0 var(--ink); }
+      .btn.pink { background: var(--magenta); }
+      .btn.gold { background: var(--gold); color: var(--ink); }
+      .btn[disabled] { opacity: .45; cursor: not-allowed; box-shadow: none; transform: none; }
+
+      .wrap { max-width: 1000px; margin: 0 auto; padding: 0 24px; }
+      .card { background: #fff; border: 2px solid var(--ink); border-radius: 18px; padding: 24px; box-shadow: 4px 4px 0 var(--ink); }
+
+      /* footer */
+      .footer { background: var(--blue); color: var(--cream); text-align: center; padding: 44px 24px; margin-top: 72px; }
+      .foot-logo .logo-lancha { color: var(--cream); } .foot-logo .logo-boat { color: var(--gold); }
+      .foot-logo { font-size: 0; margin-bottom: 10px; }
+      .footer p { margin: 5px 0; font-size: 14px; }
+      .footer .muted { color: #cfd2ff; }
+      .footer em { color: var(--gold); }
+
+      /* mobile nav: drop the text links, keep logo + CTA */
+      @media (max-width: 640px) {
+        .nav { padding: 12px 16px; }
+        .nav nav { gap: 12px; }
+        .nav nav a:not(.btn) { display: none; }
+        .logo-lancha { font-size: 22px; } .logo-boat { font-size: 24px; } .mark { width: 18px; height: 18px; }
+        .ticker-track { font-size: 12px; }
+      }
+    </style>
+  </body>
+</html>

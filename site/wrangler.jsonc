@@ -1,0 +1,14 @@
+{
+  // Cloudflare Workers static-assets deploy for the lancha boat site.
+  // `npx wrangler deploy` runs the build first (below), then uploads ./dist.
+  "name": "lalancha",
+  "compatibility_date": "2026-06-01",
+  "build": {
+    "command": "npm run build"
+  },
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  }
+}
