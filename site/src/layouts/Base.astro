@@ -12,6 +12,7 @@ const canonical = Astro.url ? new URL(Astro.url.pathname, Astro.site ?? 'https:/
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="description" content={description} />
     {canonical && <link rel="canonical" href={canonical} />}
     <meta property="og:title" content={title} />

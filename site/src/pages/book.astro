@@ -132,19 +132,27 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Confirm'];
     async function loadPricing() {
       state.date = dateEl.value; state.block = null; to2.disabled = true;
       cards.forEach(c => c.classList.remove('sel'));
-      hint.textContent = 'Loading prices…';
+      hint.textContent = 'Checking availability…';
       let prices = { morning: DEFAULT_BLOCK_PRICE, afternoon: DEFAULT_BLOCK_PRICE, night: DEFAULT_BLOCK_PRICE };
+      let booked = {};
       try {
         const res = await fetch(ENDPOINT + '?action=pricing&date=' + encodeURIComponent(state.date));
         const out = await res.json();
         if (out.ok && out.blocks) prices = out.blocks;
+        if (out.ok && out.booked) booked = out.booked;
       } catch (e) {}
+      let anyOpen = false;
       cards.forEach(c => {
         const id = c.dataset.block;
-        c.querySelector('[data-price]').textContent = '$' + (prices[id] ?? DEFAULT_BLOCK_PRICE);
-        c.disabled = false;
+        const priceEl = c.querySelector('[data-price]');
+        if (booked[id]) {
+          c.classList.add('booked'); c.disabled = true; priceEl.textContent = 'Booked';
+        } else {
+          c.classList.remove('booked'); c.disabled = false; anyOpen = true;
+          priceEl.textContent = '$' + (prices[id] ?? DEFAULT_BLOCK_PRICE);
+        }
       });
-      hint.textContent = '👇 Choose your time block';
+      hint.textContent = anyOpen ? '👇 Choose your time block' : '😕 Fully booked this day — try another date.';
     }
     cards.forEach(c => c.addEventListener('click', () => {
       cards.forEach(x => x.classList.remove('sel'));
@@ -210,6 +218,11 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Confirm'];
           body: JSON.stringify(payload),
         });
         const out = await res.json();
+        if (out && out.error === 'slot_taken') {
+          msg.textContent = 'Ah — that slot was just booked. Please pick another time.';
+          msg.className = 'form-msg err'; btn.disabled = false;
+          setStep(1); loadPricing(); return;
+        }
         if (out.ok) {
           document.querySelector('[data-panel="4"]').innerHTML =
             `<h2>You're booked! 🎉</h2>
@@ -272,6 +285,8 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Confirm'];
     }
     .block-card:not([disabled]):hover { transform: translate(-2px,-2px); box-shadow: 6px 6px 0 var(--ink); }
     .block-card[disabled] { opacity: .5; cursor: not-allowed; box-shadow: none; }
+    .block-card.booked { opacity: .6; background: #f1eee3; }
+    .block-card.booked .bp { color: var(--magenta); font-size: 18px; }
     .block-card.sel { background: var(--gold); transform: translate(2px,2px); box-shadow: 2px 2px 0 var(--ink); }
     .block-card .bl { font-family: var(--display); font-weight: 800; color: var(--ink); font-size: 20px; }
     .block-card .bt { font-size: 13px; color: #8a8470; }

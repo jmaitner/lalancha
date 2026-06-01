@@ -40,6 +40,9 @@ const CONFIG = {
 
   // --- Logistics & links (from Luis's onboarding email) ---
   DOCK_LOCATION:  'Diversey Harbor, K-Dock, Slip 8',
+  CALENDAR_NAME:  'Quarters Charters',   // dedicated availability calendar (auto-created in setup)
+  // Block time windows (24h, America/Chicago) used for calendar events + availability.
+  BLOCK_WINDOWS: { morning: [10, 0, 14, 0], afternoon: [14, 30, 18, 30], night: [19, 0, 23, 0] },
   LINK_AGREEMENT: 'https://agreement.la-lancha.com',
   LINK_WAIVER:    'https://waiver.la-lancha.com',
   LINK_DIRECTIONS:'https://k8.la-lancha.com',
@@ -71,7 +74,7 @@ const HEADERS = {
   Bookings: ['BookingID', 'Created', 'CharterDate', 'TimeBlock', 'PrimaryName',
              'PrimaryEmail', 'Phone', 'PartySize', 'CaptainStatus',
              'CaptainAssigned', 'AddOns', 'AmountPaid', 'StripeRef',
-             'Destination', 'EngineHours', 'FuelDue', 'Status', 'FolderURL', 'Notes'],
+             'Destination', 'EngineHours', 'FuelDue', 'Status', 'FolderURL', 'EventId', 'Notes'],
   Leads:    ['Created', 'Name', 'Email', 'Phone', 'Source', 'Interest',
              'Status', 'Notes'],
   Guests:   ['BookingID', 'GuestName', 'Email', 'IsPrimary', 'WaiverSent',
@@ -114,13 +117,16 @@ function setupLaLanchaSystem() {
     'WELCOME ABOARD ' + CONFIG.BOAT_NAME.toUpperCase() + '\n\nArrival, parking, what to bring, '
     + 'captain & gratuity info, house rules. (Luis: fill this in.)');
 
+  const calendar = getOrCreateCalendar_();
+
   PROPS.setProperties({
     ROOT_FOLDER_ID:     root.getId(),
     CHARTERS_FOLDER_ID: charters.getId(),
     TEMPLATES_FOLDER_ID: templates.getId(),
     SPREADSHEET_ID:     ss.getId(),
     INQUIRY_FORM_ID:    inquiryForm.getId(),
-    CAPTAIN_FORM_ID:    captainForm.getId()
+    CAPTAIN_FORM_ID:    captainForm.getId(),
+    CALENDAR_ID:        calendar.getId()
   });
 
   installTriggers_();
@@ -129,6 +135,7 @@ function setupLaLanchaSystem() {
   Logger.log('Operations sheet: ' + ss.getUrl());
   Logger.log('Inquiry form:     ' + inquiryForm.getPublishedUrl());
   Logger.log('Captain form:     ' + captainForm.getPublishedUrl());
+  Logger.log('Calendar:         ' + CONFIG.CALENDAR_NAME + ' (' + calendar.getId() + ')');
   Logger.log('Root folder:      ' + root.getUrl());
 }
 
@@ -173,6 +180,12 @@ function rebuildCaptainForm() {
  */
 function createBooking(data) {
   const ss = openSS_();
+
+  // 0) Race guard — re-check the calendar; the slot may have just been taken.
+  if (getAvailability_(data.charterDate)[data.timeBlock]) {
+    return { ok: false, error: 'slot_taken' };
+  }
+
   const bookingId = newBookingId_(data.charterDate);
 
   // 1) Dedicated Drive folder for this charter + copy templates in
@@ -181,7 +194,10 @@ function createBooking(data) {
   const folder = charters.createFolder(folderName);
   copyTemplatesInto_(folder);
 
-  // 2) Log the booking
+  // 2) Auto-confirm onto the calendar — this is also what blocks the slot.
+  const eventId = createCalendarEvent_(data, bookingId, folder.getUrl());
+
+  // 3) Log the booking
   appendRow_(ss, 'Bookings', {
     BookingID: bookingId,
     Created: now_(),
@@ -198,6 +214,7 @@ function createBooking(data) {
     StripeRef: data.stripeRef || '',
     Status: 'Booked',
     FolderURL: folder.getUrl(),
+    EventId: eventId,
     Notes: ''
   });
 
@@ -212,9 +229,9 @@ function createBooking(data) {
     });
   });
 
-  // 4) Emails
+  // Emails: guest confirmation + Luis notification (one email, captain-need flagged)
   sendBookingConfirmation_(data, bookingId);
-  if ((data.captainStatus || '').toLowerCase() === 'need') pingCaptainNeeded_(data, bookingId);
+  notifyLuisNewBooking_(data, bookingId, folder.getUrl());
 
   return { ok: true, bookingId: bookingId, folderUrl: folder.getUrl() };
 }
@@ -315,7 +332,11 @@ function doPost(e) {
 function doGet(e) {
   const action = e && e.parameter ? e.parameter.action : null;
   if (action === 'pricing') {
-    return json_({ ok: true, date: e.parameter.date || null, blocks: getPricing_(e.parameter.date) });
+    return json_({ ok: true, date: e.parameter.date || null,
+      blocks: getPricing_(e.parameter.date), booked: getAvailability_(e.parameter.date) });
+  }
+  if (action === 'availability') {
+    return json_({ ok: true, date: e.parameter.date || null, booked: getAvailability_(e.parameter.date) });
   }
   return json_({ ok: true, service: CONFIG.BUSINESS_NAME + ' backend' });
 }
@@ -572,6 +593,67 @@ function copyTemplatesInto_(folder) {
   var tpl = DriveApp.getFolderById(PROPS.getProperty('TEMPLATES_FOLDER_ID'));
   var files = tpl.getFiles();
   while (files.hasNext()) { files.next().makeCopy().moveTo(folder); }
+}
+
+// --- calendar (source of truth for availability) ---
+function getOrCreateCalendar_() {
+  var existing = CalendarApp.getCalendarsByName(CONFIG.CALENDAR_NAME);
+  if (existing && existing.length) return existing[0];
+  return CalendarApp.createCalendar(CONFIG.CALENDAR_NAME, {
+    summary: 'Availability + confirmed charters for ' + CONFIG.BOAT_NAME, timeZone: CONFIG.TIMEZONE
+  });
+}
+function calendar_() {
+  var id = PROPS.getProperty('CALENDAR_ID');
+  return id ? CalendarApp.getCalendarById(id) : null;
+}
+/** {start,end} Date objects for a block on a yyyy-MM-dd date (script tz = Chicago). */
+function blockWindow_(dateStr, blockId) {
+  var w = CONFIG.BLOCK_WINDOWS[blockId];
+  if (!w || !dateStr) return null;
+  var p = String(dateStr).split('-');
+  return { start: new Date(+p[0], +p[1] - 1, +p[2], w[0], w[1]),
+           end:   new Date(+p[0], +p[1] - 1, +p[2], w[2], w[3]) };
+}
+/** {morning,afternoon,night} booleans — true = already booked/blocked on the calendar. */
+function getAvailability_(dateStr) {
+  var out = { morning: false, afternoon: false, night: false };
+  var cal = calendar_();
+  if (!cal || !dateStr) return out;
+  Object.keys(CONFIG.BLOCK_WINDOWS).forEach(function (b) {
+    var win = blockWindow_(dateStr, b);
+    out[b] = cal.getEvents(win.start, win.end).length > 0;
+  });
+  return out;
+}
+/** Create the confirmed charter event (guest invited). Returns event id. */
+function createCalendarEvent_(data, bookingId, folderUrl) {
+  var cal = calendar_();
+  var win = blockWindow_(data.charterDate, data.timeBlock);
+  if (!cal || !win) return '';
+  var needs = String(data.captainStatus).toLowerCase() === 'need';
+  var title = CONFIG.BOAT_NAME + ' Charter — ' + (data.primaryName || 'Guest') + ' (' + bookingId + ')';
+  var desc = 'Party of ' + (data.partySize || '?') + '\n' +
+             'Contact: ' + (data.primaryName || '') + ' · ' + (data.primaryEmail || '') + ' · ' + (data.phone || '') + '\n' +
+             'Captain: ' + (needs ? 'NEEDED — assign one' : 'guest bringing own') + '\n' +
+             (data.addOns ? 'Add-ons: ' + data.addOns + '\n' : '') +
+             (folderUrl ? 'Folder: ' + folderUrl + '\n' : '') + 'Booking ' + bookingId;
+  var ev = cal.createEvent(title, win.start, win.end,
+    { description: desc, location: CONFIG.DOCK_LOCATION, guests: data.primaryEmail || '', sendInvites: true });
+  return ev.getId();
+}
+function notifyLuisNewBooking_(data, bookingId, folderUrl) {
+  var needs = String(data.captainStatus).toLowerCase() === 'need';
+  var block = CONFIG.TIME_BLOCKS[data.timeBlock] || data.timeBlock;
+  GmailApp.sendEmail(CONFIG.OWNER_EMAIL,
+    (needs ? '⚓ NEW BOOKING — captain needed' : '✅ NEW BOOKING') + ' · ' + data.charterDate + ' · ' + block,
+    'New confirmed charter aboard ' + CONFIG.BOAT_NAME + '.\n\n' +
+    'Booking: ' + bookingId + '\nGuest: ' + (data.primaryName || '') + ' (' + (data.primaryEmail || '') + ', ' + (data.phone || '') + ')\n' +
+    'Date: ' + data.charterDate + '\nBlock: ' + block + '\nParty: ' + (data.partySize || '') + '\n' +
+    'Captain: ' + (needs ? 'NEEDED — assign one from the roster' : 'guest bringing their own') + '\n' +
+    (data.addOns ? 'Add-ons: ' + data.addOns + '\n' : '') +
+    '\nIt\'s on the "' + CONFIG.CALENDAR_NAME + '" calendar. To cancel/decline, delete that event — the slot reopens automatically.\n' +
+    (folderUrl ? '\nFolder: ' + folderUrl : ''));
 }
 
 // --- generic Drive / Sheet / Form utilities ---
