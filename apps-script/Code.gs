@@ -36,7 +36,7 @@ const CONFIG = {
   FUEL_HOURLY_RATE:  25,    // $/hr of engine time for trips beyond the Playpen
   CAPTAIN_RATE_LOW:  100,   // $/hr, low end
   CAPTAIN_RATE_HIGH: 150,   // $/hr, high end (weekend / high demand)
-  DEFAULT_BLOCK_PRICE: 400, // default price per 4-hr block ($100/hr × 4); overridable per date in the Pricing tab
+  DEFAULT_BLOCK_PRICE: 880, // standard price per time segment; overridable per date in the Pricing tab
 
   // --- Logistics & links (from Luis's onboarding email) ---
   DOCK_LOCATION:  'Diversey Harbor, K-Dock, Slip 8',

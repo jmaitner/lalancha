@@ -14,7 +14,7 @@ export const BLOCKS = [
   { id: 'night',     label: 'Night',     time: '7:00 PM – 11:00 PM' },
 ] as const;
 
-export const DEFAULT_BLOCK_PRICE = 400; // fallback if pricing fetch fails
+export const DEFAULT_BLOCK_PRICE = 880; // standard price per time segment (fallback if pricing fetch fails)
 
 // Capacity (USCG bareboat max is 12 passengers).
 export const MAX_PARTY = 12;
