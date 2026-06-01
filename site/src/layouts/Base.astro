@@ -49,14 +49,8 @@ const canonical = Astro.url ? new URL(Astro.url.pathname, Astro.site ?? 'https:/
       <p>Private charters aboard <em>Quarters</em> · Diversey Harbor · K-Dock, Slip 8 · Chicago</p>
       <p class="muted">Operated under a bareboat / demise charter model in compliance with USCG vessel safety standards.</p>
       <span class="builtby">
-        <svg class="rr-mark" viewBox="0 0 48 56" fill="none" aria-hidden="true">
-          <path d="M24 2.5 44 10.5V27c0 14-9.5 22.5-20 26C13.5 49.5 4 41 4 27V10.5Z" fill="#fff" stroke="#1E73E6" stroke-width="3" stroke-linejoin="round"/>
-          <circle cx="24" cy="27" r="11" fill="#1E73E6"/>
-          <circle cx="24" cy="27" r="7.4" fill="none" stroke="#fff" stroke-width="1.7"/>
-          <circle cx="24" cy="27" r="2.7" fill="#fff"/>
-          <path d="M24 29.7V34.4M24 27l-6.4-3.7M24 27l6.4-3.7" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>
-        </svg>
-        <span>Built by <strong>Road Ready</strong> <span class="rr-sub">Safety</span></span>
+        <span class="builtby-label">Built by</span>
+        <img class="rr-logo" src="/road-ready-safety.png" alt="Road Ready Safety" width="140" height="35" />
       </span>
     </footer>
 
@@ -128,12 +122,10 @@ const canonical = Astro.url ? new URL(Astro.url.pathname, Astro.site ?? 'https:/
       .footer p { margin: 5px 0; font-size: 14px; }
       .footer .muted { color: #cfd2ff; }
       .footer em { color: var(--gold); }
-      .builtby { display: inline-flex; align-items: center; gap: 9px; margin-top: 20px;
-                 background: #fff; color: #14202b; padding: 7px 16px 7px 11px; border-radius: 999px;
-                 font-size: 13px; font-weight: 600; }
-      .builtby .rr-mark { width: 20px; height: 23px; display: block; }
-      .builtby strong { color: #14202b; font-weight: 800; }
-      .builtby .rr-sub { color: #8a93a3; font-weight: 700; }
+      .builtby { display: inline-flex; align-items: center; gap: 10px; margin-top: 20px;
+                 background: #fff; padding: 8px 16px; border-radius: 999px; }
+      .builtby-label { color: #6b7280; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+      .builtby .rr-logo { height: 24px; width: auto; display: block; }
 
       /* mobile nav: drop the text links, keep logo + CTA */
       @media (max-width: 640px) {
