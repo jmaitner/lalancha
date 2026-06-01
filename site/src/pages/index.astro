@@ -3,6 +3,20 @@ import Base from '../layouts/Base.astro';
 import { ENDPOINT, BLOCKS, DOCK } from '../config.ts';
 import { destinations } from '../destinations.ts';
 
+const site = Astro.site ?? new URL('https://lanchaboat.com');
+const siteLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    { '@type': 'WebSite', name: 'lancha boat', url: site.href,
+      description: 'Private boat charters aboard Quarters on Lake Michigan, Chicago.' },
+    { '@type': ['LocalBusiness', 'TouristAttraction'], name: 'lancha boat',
+      image: new URL('/og.jpg', site).href, url: site.href, email: 'lalanchacharters@gmail.com',
+      description: 'Private boat charters aboard Quarters on Lake Michigan — morning, afternoon, and night charters from Diversey Harbor, Chicago. Bareboat model with a USCG-licensed captain.',
+      address: { '@type': 'PostalAddress', streetAddress: 'Diversey Harbor, K-Dock Slip 8', addressLocality: 'Chicago', addressRegion: 'IL', addressCountry: 'US' },
+      areaServed: 'Chicago, Lake Michigan', priceRange: '$$' },
+  ],
+};
+
 const blockTags = ['TOP PICK', 'CITY VIEW', "CAP'S PICK"];
 // Full photo wall — all Quarters shots (9 is the hero) + the chosen IMG files.
 const gallery = [
@@ -11,6 +25,10 @@ const gallery = [
 ];
 ---
 <Base>
+  <Fragment slot="head">
+    <script type="application/ld+json" set:html={JSON.stringify(siteLd)} />
+  </Fragment>
+
   <!-- HERO -->
   <section class="hero wrap">
     <div class="hero-text">

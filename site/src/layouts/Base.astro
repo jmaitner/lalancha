@@ -2,9 +2,12 @@
 const {
   title = 'lancha boat · private charters aboard Quarters',
   description = 'Private boat charters on Lake Michigan aboard Quarters. Good times on water, chill with friends & fam, bring your own whatever — based in Chicago at Diversey Harbor.',
+  image = '/og.jpg',
 } = Astro.props;
 const ticker = 'GOOD TIMES → ON WATER  •  CHILL WITH → FRIENDS & FAM  •  BRING YOUR OWN → WHATEVER  •  ';
-const canonical = Astro.url ? new URL(Astro.url.pathname, Astro.site ?? 'https://lanchaboat.com').href : undefined;
+const base = Astro.site ?? new URL('https://lanchaboat.com');
+const canonical = Astro.url ? new URL(Astro.url.pathname, base).href : undefined;
+const ogImage = image.startsWith('http') ? image : new URL(image, base).href;
 ---
 <!doctype html>
 <html lang="en">
@@ -18,8 +21,13 @@ const canonical = Astro.url ? new URL(Astro.url.pathname, Astro.site ?? 'https:/
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="lancha boat" />
     {canonical && <meta property="og:url" content={canonical} />}
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content={ogImage} />
     <slot name="head" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

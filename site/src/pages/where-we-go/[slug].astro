@@ -44,7 +44,6 @@ const jsonld = {
 ---
 <Base title={d.title} description={d.description}>
   <Fragment slot="head">
-    <meta property="og:image" content={heroUrl} />
     <script type="application/ld+json" set:html={JSON.stringify(jsonld)} />
   </Fragment>
 
