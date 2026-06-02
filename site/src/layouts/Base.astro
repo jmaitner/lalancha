@@ -29,9 +29,6 @@ const ogImage = image.startsWith('http') ? image : new URL(image, base).href;
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content={ogImage} />
     <slot name="head" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Zalando+Sans:wght@400;500;600;700&family=Zalando+Sans+Expanded:wght@600;700;800&family=Covered+By+Your+Grace&display=swap" rel="stylesheet" />
   </head>
   <body>
     <!-- scrolling ticker -->
@@ -39,10 +36,7 @@ const ogImage = image.startsWith('http') ? image : new URL(image, base).href;
 
     <header class="nav">
       <a class="logo" href="/" aria-label="lancha boat home">
-        <span class="logo-lancha">lancha</span><span class="logo-boat">boat</span>
-        <span class="mark" aria-hidden="true">
-          <svg viewBox="0 0 64 64" fill="none"><path d="M14 50C22 30 30 22 50 14" stroke="currentColor" stroke-width="9" stroke-linecap="round"/><path d="M33 14h19v19" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </span>
+        <img src="/brand/logolockup_blitz.svg" alt="lancha boat" class="logo-svg" width="158" height="44" />
       </a>
       <nav>
         <a href="/#how">How it works</a>
@@ -54,7 +48,7 @@ const ogImage = image.startsWith('http') ? image : new URL(image, base).href;
     <slot />
 
     <footer class="footer">
-      <div class="foot-logo"><span class="logo-lancha">lancha</span><span class="logo-boat">boat</span></div>
+      <div class="foot-logo"><img src="/brand/logolockup_80black.svg" alt="lancha boat" class="logo-svg logo-svg--footer" width="158" height="44" /></div>
       <p>Private charters aboard <em>Quarters</em> · Diversey Harbor · K-Dock, Slip 8 · Chicago</p>
       <p class="muted">Operated under a bareboat / demise charter model in compliance with USCG vessel safety standards.</p>
       <span class="builtby">
@@ -64,17 +58,47 @@ const ogImage = image.startsWith('http') ? image : new URL(image, base).href;
     </footer>
 
     <style is:global>
+      /* ── Brand fonts (self-hosted, variable) ─────────────────────────── */
+      @font-face {
+        font-family: 'Zalando Sans';
+        src: url('/fonts/ZalandoSans-Variable.ttf') format('truetype');
+        font-weight: 100 900;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Zalando Sans';
+        src: url('/fonts/ZalandoSans-Variable-Italic.ttf') format('truetype');
+        font-weight: 100 900;
+        font-style: italic;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Zalando Sans Expanded';
+        src: url('/fonts/ZalandoSansExpanded-Variable.ttf') format('truetype');
+        font-weight: 100 900;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Covered By Your Grace';
+        src: url('/fonts/CoveredByYourGrace-Regular.ttf') format('truetype');
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+
       :root {
-        --cream: #FFFDEF;   /* sunrise */
-        --ink:   #333333;   /* 80% blackout */
-        --blue:  #444AEB;   /* chi vice */
-        --pink:  #EC82EA;   /* bazooka */
-        --magenta:#E81C8E;  /* blitz */
-        --gold:  #FFD600;   /* pop of summer */
-        --line:  #e7e3cf;
-        --sans: 'Zalando Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        --cream:   #FFFDEF;  /* sunrise — background base */
+        --ink:     #333333;  /* 80% blackout — text/borders */
+        --blue:    #444AEB;  /* chi vice — primary */
+        --pink:    #EC82EA;  /* bazooka — soft accent */
+        --magenta: #E81C8E;  /* blitz — hot accent */
+        --gold:    #FFD600;  /* pop of summer — highlight */
+        --line:    #e7e3cf;
+        --sans:    'Zalando Sans', system-ui, sans-serif;
         --display: 'Zalando Sans Expanded', 'Zalando Sans', system-ui, sans-serif;
-        --script: 'Covered By Your Grace', 'Comic Sans MS', cursive;
+        --script:  'Covered By Your Grace', cursive;
       }
       * { box-sizing: border-box; }
       html { scroll-behavior: smooth; }
@@ -94,11 +118,9 @@ const ogImage = image.startsWith('http') ? image : new URL(image, base).href;
       @keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 
       /* logo lockup */
-      .logo { display: inline-flex; align-items: center; gap: 4px; text-decoration: none; }
-      .logo-lancha { font-family: var(--display); font-weight: 800; font-size: 26px; color: var(--ink); letter-spacing: -0.02em; }
-      .logo-boat { font-family: var(--script); font-size: 28px; color: var(--magenta); margin-left: 2px; transform: rotate(-4deg); }
-      .mark { display: inline-block; width: 22px; height: 22px; color: var(--blue); margin-left: 4px; }
-      .mark svg { width: 100%; height: 100%; }
+      .logo { display: inline-flex; align-items: center; text-decoration: none; }
+      .logo-svg { height: 36px; width: auto; display: block; }
+      .logo-svg--footer { height: 32px; filter: brightness(0) invert(1); }
 
       /* nav */
       .nav { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px;
@@ -126,8 +148,7 @@ const ogImage = image.startsWith('http') ? image : new URL(image, base).href;
 
       /* footer */
       .footer { background: var(--blue); color: var(--cream); text-align: center; padding: 44px 24px; margin-top: 72px; }
-      .foot-logo .logo-lancha { color: var(--cream); } .foot-logo .logo-boat { color: var(--gold); }
-      .foot-logo { font-size: 0; margin-bottom: 10px; }
+      .foot-logo { margin-bottom: 10px; }
       .footer p { margin: 5px 0; font-size: 14px; }
       .footer .muted { color: #cfd2ff; }
       .footer em { color: var(--gold); }
@@ -141,7 +162,7 @@ const ogImage = image.startsWith('http') ? image : new URL(image, base).href;
         .nav { padding: 12px 16px; }
         .nav nav { gap: 12px; }
         .nav nav a:not(.btn) { display: none; }
-        .logo-lancha { font-size: 22px; } .logo-boat { font-size: 24px; } .mark { width: 18px; height: 18px; }
+        .logo-svg { height: 28px; }
         .ticker-track { font-size: 12px; }
       }
     </style>
