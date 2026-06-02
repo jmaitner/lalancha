@@ -43,9 +43,15 @@ const CONFIG = {
   CALENDAR_NAME:  'Quarters Charters',   // dedicated availability calendar (auto-created in setup)
   // Block time windows (24h, America/Chicago) used for calendar events + availability.
   BLOCK_WINDOWS: { morning: [10, 0, 14, 0], afternoon: [14, 30, 18, 30], night: [19, 0, 23, 0] },
-  LINK_AGREEMENT: 'https://agreement.la-lancha.com',
-  LINK_WAIVER:    'https://waiver.la-lancha.com',
+  // Direct JotForm URLs (reliable prefill). Swap back to agreement.la-lancha.com /
+  // waiver.la-lancha.com once confirmed those subdomains pass ?params through.
+  LINK_AGREEMENT: 'https://form.jotform.com/260923725423052', // Bareboat Charter Agreement (sign + pay)
+  LINK_WAIVER:    'https://form.jotform.com/261307203350039', // 2026 Waiver (per-guest, no payment)
+  // JotForm → Google Sheets spreadsheets (read by the reconcile script).
+  AGREEMENT_SHEET_ID: '1hf2hLcHrEOEgtLQ0B9Rg5240Lupw5fCrNAaaaPanaxA', // Charter Agreement v2
+  WAIVER_SHEET_ID:    '1nGspti46J9PI4evPaoJJP3QLtRIe4TzQuL9rR16jYVY', // Waiver v3 (has bookingId)
   LINK_DIRECTIONS:'https://k8.la-lancha.com',
+  GOOGLE_REVIEW_URL: 'https://share.google/RewjcwDIgFhDb8Gzs', // post-charter review ask
   LINK_CAPTAINS:  'https://drive.google.com/file/d/1961Eq70KU8SnwpasENDAAH3YB4cOLGmx/view',
 
   // Existing Drive folder to build everything INSIDE (the shared La Lancha root).
@@ -74,7 +80,8 @@ const HEADERS = {
   Bookings: ['BookingID', 'Created', 'CharterDate', 'TimeBlock', 'PrimaryName',
              'PrimaryEmail', 'Phone', 'PartySize', 'CaptainStatus',
              'CaptainAssigned', 'AddOns', 'AmountPaid', 'StripeRef',
-             'Destination', 'EngineHours', 'FuelDue', 'Status', 'FolderURL', 'EventId', 'Notes'],
+             'Destination', 'EngineHours', 'FuelDue', 'Paid', 'AgreementSigned',
+             'Status', 'FolderURL', 'EventId', 'ReviewRequested', 'Notes'],
   Leads:    ['Created', 'Name', 'Email', 'Phone', 'Source', 'Interest',
              'Status', 'Notes'],
   Guests:   ['BookingID', 'GuestName', 'Email', 'IsPrimary', 'WaiverSent',
@@ -164,6 +171,131 @@ function rebuildCaptainForm() {
   PROPS.setProperty('CAPTAIN_FORM_ID', form.getId());
   installTriggers_();
   Logger.log('Rebuilt captain form: ' + form.getPublishedUrl());
+}
+
+/**
+ * One-time helper: prints the column headers (+ first data row) of the JotForm
+ * Sheets, so we can map them for the reconcile. Run it, then paste the log.
+ */
+function dumpJotformSheets() {
+  [['AGREEMENT', CONFIG.AGREEMENT_SHEET_ID], ['WAIVER', CONFIG.WAIVER_SHEET_ID]].forEach(function (pair) {
+    try {
+      var sh = SpreadsheetApp.openById(pair[1]).getSheets()[0];
+      var v = sh.getDataRange().getValues();
+      Logger.log('=== ' + pair[0] + ' tab "' + sh.getName() + '" (' + (v.length - 1) + ' rows) ===');
+      Logger.log('HEADERS: ' + JSON.stringify(v[0]));
+      if (v[1]) Logger.log('FIRST ROW: ' + JSON.stringify(v[1]));
+    } catch (e) { Logger.log(pair[0] + ' ERROR: ' + e); }
+  });
+}
+
+/**
+ * One-time: generates a polished Google Doc handoff brief for Luis (in the
+ * La Lancha Drive folder) and logs the URL. Run it, then share the doc.
+ */
+function createHandoffDoc() {
+  var doc = DocumentApp.create('lancha boat — System Handoff for Luis');
+  var b = doc.getBody();
+  var P = DocumentApp.ParagraphHeading, G = DocumentApp.GlyphType;
+  function title(t){ b.appendParagraph(t).setHeading(P.TITLE); }
+  function h1(t){ b.appendParagraph(t).setHeading(P.HEADING1); }
+  function p(t){ b.appendParagraph(t); }
+  function li(t){ b.appendListItem(t).setGlyphType(G.BULLET); }
+  function num(t){ b.appendListItem(t).setGlyphType(G.NUMBER); }
+  function tbl(rows){ b.appendTable(rows); }
+
+  title('lancha boat — System Handoff');
+  p('A booking + operations system for La Lancha / Quarters, built on a website plus your Google Workspace, JotForm, and Stripe. Everything runs on lalanchacharters@gmail.com.');
+
+  h1('1. What a customer experiences');
+  num('Visits the website — sees Quarters, photos, the 3 time blocks, "where we go," and pricing.');
+  num('Books: picks a date (booked blocks are greyed out), picks Morning / Afternoon / Night, enters details, confirms.');
+  num('Gets an instant confirmation email (bareboat model, captain, fuel, dock directions) with two links: Charter Agreement (sign + pay) and Guest Waiver.');
+  num('Signs the agreement and pays $880 (Stripe, inside the form).');
+  num('Each guest signs the waiver.');
+  num('Meets the boat at Diversey Harbor, K-Dock Slip 8.');
+  num('The next morning, gets a "How was it?" email asking for a Google review.');
+
+  h1('2. What happens automatically (you do nothing)');
+  li('The booking lands on your "Quarters Charters" Google Calendar with the guest name + booking code; the guest gets a calendar invite.');
+  li('The website blocks that slot so nobody double-books.');
+  li('A dedicated Drive folder is created for every charter.');
+  li('You get an email for every booking (flagged when a captain is needed).');
+  li('Payment, agreement, and waivers flow back into your sheet (Paid / Agreement / Waiver), checked every 10 minutes.');
+  li('If someone pays the wrong amount, you get a warning email.');
+  li('Fuel is calculated from the captain’s post-charter report (Playpen = flat $25, otherwise $25/hr).');
+  li('A daily digest lists who still hasn’t signed a waiver.');
+  li('A Google review request goes out after each charter (unhappy feedback routes privately to you).');
+  li('Every inquiry is captured as a lead.');
+
+  h1('3. Where everything lives');
+  tbl([
+    ['Website (lancha boat)', 'The public booking + marketing site'],
+    ['"La Lancha — Operations" Google Sheet', 'Your dashboard: Bookings, Leads, Guests, Captains, Pricing'],
+    ['"Quarters Charters" Google Calendar', 'The source of truth for availability'],
+    ['Drive → La Lancha → Charters/', 'A folder per booked charter'],
+    ['JotForm — Charter Agreement', 'Primary signs + pays the $880'],
+    ['JotForm — 2026 Waiver', 'Each guest signs (no payment)'],
+    ['Stripe ("LaLancha Strip")', 'Processes the charter payment'],
+    ['Google Form — Captain Report', 'Captains fill after each trip (drives fuel)'],
+    ['Apps Script "La Lancha Backend"', 'The brain connecting all of the above'],
+  ]);
+
+  h1('4. Your day-to-day playbook');
+  li('New booking? It’s already on your calendar + emailed. Assign a captain from your roster and note it.');
+  li('Block a day (maintenance, weather, or a booking from Boatsetter / GetMyBoat / Sailo / the Playpen)? Add an event to the Quarters Charters calendar — the website will show that slot booked.');
+  li('Premium price for a special date? Add a row to the Pricing tab. Blank = standard $880.');
+  li('Cancel / decline? Delete the booking’s calendar event — the slot reopens automatically.');
+  li('After a trip? The captain fills the report → you get an email with the fuel amount to invoice.');
+  li('Check status anytime in the Bookings tab (Paid, Agreement, captain, fuel).');
+
+  h1('5. The money');
+  tbl([
+    ['Item', 'Amount', 'How it’s collected'],
+    ['Charter fee', '$880 per time block', 'Stripe, inside the Charter Agreement'],
+    ['Captain', '~$100–$150/hr', 'Paid separately, directly to the captain'],
+    ['Fuel', '$25 flat (Playpen) or $25/hr (beyond)', 'Invoiced after the trip'],
+  ]);
+
+  h1('6. What’s done, and what’s left');
+  p('DONE & working:');
+  li('Branded website (real Quarters photos, mobile-ready), booking flow, "where we go" SEO pages, shareable link previews.');
+  li('Live calendar availability + auto-confirm (no double-booking).');
+  li('Google backend: per-charter folders, Bookings/Leads/Guests/Captains/Pricing.');
+  li('JotForm + Stripe: sign + pay, waivers, auto-reconciled into your sheet, wrong-amount alerts.');
+  li('Captain post-charter report → automatic fuel calculation.');
+  li('Post-charter Google review requests; daily waiver digest; code backed up on GitHub.');
+  p('REMAINING to go fully live:');
+  num('Deploy the website to Cloudflare (connect the GitHub repo).');
+  num('Choose the domain (lanchaboat.com vs la-lancha.com), then add the custom domain.');
+  num('Confirm Stripe is in Live mode before the first real booking.');
+  num('Delete the leftover test bookings (CAL TEST / TEST123).');
+
+  h1('7. Using Claude to understand & change this in the future');
+  p('You can use your own Claude account to ask questions about this system or make changes — you don’t have to be technical.');
+  p('Easiest: ask questions in plain English. Open claude.ai, paste any part of this brief, and ask things like "explain how the fuel charge works" or "what happens when a guest books?"');
+  p('Deeper (work with the actual code): the whole system lives in a GitHub repository, and it includes a CLAUDE.md file that briefs Claude on everything automatically.');
+  num('Ask Jackson to add you as a collaborator on the repo: github.com/jmaitner/lalancha');
+  num('Install Claude Code (claude.com/claude-code) on your computer, or use the GitHub connector on claude.ai.');
+  num('Point Claude at the repo (clone github.com/jmaitner/lalancha). Claude reads CLAUDE.md and instantly understands the project.');
+  num('Ask it anything, e.g.: "Explain how booking works." / "Change the standard price to $950." / "Add a new destination page for Montrose Harbor." / "Reword the confirmation email." / "How do I take the site live?"');
+  p('Claude can make the change, test it, and push it. For anything that touches live bookings or payments, ask it to explain the change first and test before going live.');
+
+  h1('8. Good to know');
+  li('Other platforms don’t auto-sync. Bookings from Boatsetter / GetMyBoat / Sailo / the Playpen won’t appear automatically — block those dates on the Quarters Charters calendar so the website stays accurate.');
+  li('The calendar is your control panel. Adding/removing events is how you open, block, and cancel availability.');
+  li('Stripe is live — real cards get charged once a booking pays.');
+
+  h1('Key links');
+  li('GitHub repo: github.com/jmaitner/lalancha');
+  li('Operations sheet: ' + openSS_().getUrl());
+  li('Charter Agreement form: form.jotform.com/260923725423052');
+  li('Waiver form: form.jotform.com/261307203350039');
+  li('Backend: Apps Script project "La Lancha Backend" (script.google.com)');
+
+  doc.saveAndClose();
+  try { DriveApp.getFileById(doc.getId()).moveTo(DriveApp.getFolderById(PROPS.getProperty('ROOT_FOLDER_ID'))); } catch (e) {}
+  Logger.log('✅ Handoff doc created: ' + doc.getUrl());
 }
 
 // ====================== CORE: NEW BOOKING ==================================
@@ -466,6 +598,12 @@ function installTriggers_() {
 
   // Daily waiver-reminder digest at 9am
   ScriptApp.newTrigger('sendWaiverReminders').timeBased().atHour(9).everyDays(1).create();
+
+  // Daily post-charter review request at 10am
+  ScriptApp.newTrigger('requestReviews').timeBased().atHour(10).everyDays(1).create();
+
+  // Reconcile JotForm submissions (agreement payment/sign + waivers) every 10 min
+  ScriptApp.newTrigger('reconcileJotform').timeBased().everyMinutes(10).create();
 }
 
 function getOrCreateInquiryForm_(folder, ss) {
@@ -535,6 +673,15 @@ function sendBookingConfirmation_(data, bookingId) {
   const needsCaptain = String(data.captainStatus).toLowerCase() === 'need';
   const firstName = data.firstName || String(data.primaryName || '').split(' ')[0] || 'there';
 
+  // Prefilled JotForm links so each form knows which booking it belongs to (+ the
+  // Stripe amount for the agreement). Hidden JotForm fields must be named:
+  // bookingId, name, email, amount.
+  const amount = data.amountPaid || CONFIG.DEFAULT_BLOCK_PRICE;
+  const enc = encodeURIComponent;
+  const agreementUrl = CONFIG.LINK_AGREEMENT + '?bookingId=' + enc(bookingId) +
+    '&name=' + enc(data.primaryName || '') + '&email=' + enc(data.primaryEmail || '') + '&amount=' + enc(amount);
+  const waiverUrl = CONFIG.LINK_WAIVER + '?bookingId=' + enc(bookingId);
+
   const captainPara = needsCaptain
     ? 'We don’t expect you to have a captain in your back pocket, so we maintain a roster of independent captains familiar with the boat. I’ve reached out to that full list already to see who is available, and I’ll follow up again if we don’t hear back soon. We’ll have someone confirmed for you, no worries on that front. You’re also welcome to bring your own qualified captain.'
     : 'You let us know you’re bringing your own qualified captain — perfect. Please send their credentials over so we can confirm them. If anything changes, we keep a roster of independent captains familiar with the boat and can help.';
@@ -553,8 +700,8 @@ function sendBookingConfirmation_(data, bookingId) {
     '<p>We believe these are the easiest and most legally compliant interpretations of the law. Other operators may interpret some of these regulations differently, though we all share the same rigorous compliance with USCG vessel safety standards.</p>' +
     '<p>Please fill out the <strong>Charter Agreement</strong>, and have all of your other guests fill out the <strong>Guest Waiver</strong>:</p>' +
     '<ul>' +
-    '<li>Charter Agreement &rarr; <a href="' + CONFIG.LINK_AGREEMENT + '">' + CONFIG.LINK_AGREEMENT.replace(/^https?:\/\//, '') + '</a></li>' +
-    '<li>Guest Waiver &rarr; <a href="' + CONFIG.LINK_WAIVER + '">' + CONFIG.LINK_WAIVER.replace(/^https?:\/\//, '') + '</a></li>' +
+    '<li>Charter Agreement <span style="color:#5f6b53">(includes your $' + amount + ' charter payment)</span> &rarr; <a href="' + agreementUrl + '">sign &amp; pay</a></li>' +
+    '<li>Guest Waiver <span style="color:#5f6b53">(each guest signs)</span> &rarr; <a href="' + waiverUrl + '">open waiver</a></li>' +
     '</ul>' +
     '<p>The boat is located at <strong>' + CONFIG.DOCK_LOCATION + '</strong>. Her name is <strong>' + CONFIG.BOAT_NAME + '</strong>. ' +
     'Directions to the right spot &rarr; <a href="' + CONFIG.LINK_DIRECTIONS + '">' + CONFIG.LINK_DIRECTIONS.replace(/^https?:\/\//, '') + '</a></p>' +
@@ -655,6 +802,135 @@ function notifyLuisNewBooking_(data, bookingId, folderUrl) {
     '\nIt\'s on the "' + CONFIG.CALENDAR_NAME + '" calendar. To cancel/decline, delete that event — the slot reopens automatically.\n' +
     (folderUrl ? '\nFolder: ' + folderUrl : ''));
 }
+
+// --- post-charter reviews ---
+/**
+ * Daily: email the primary guest of any FINISHED charter a Google-review request
+ * (once per booking). Light gate: happy -> Google review button; unhappy -> reply privately.
+ */
+function requestReviews() {
+  const ss = openSS_();
+  const sh = ss.getSheetByName('Bookings');
+  const rows = sh.getDataRange().getValues();
+  const H = HEADERS.Bookings;
+  const now = new Date();
+  for (var r = 1; r < rows.length; r++) {
+    var row = rows[r];
+    if (row[H.indexOf('ReviewRequested')]) continue;                        // already asked
+    if (String(row[H.indexOf('Status')]).toLowerCase().indexOf('cancel') >= 0) continue;
+    var email = row[H.indexOf('PrimaryEmail')];
+    if (!email) continue;
+    var win = blockWindowFromLabel_(row[H.indexOf('CharterDate')], row[H.indexOf('TimeBlock')]);
+    if (!win || win.end > now) continue;                                    // charter not over yet
+    sendReviewEmail_(row[H.indexOf('PrimaryName')], email);
+    sh.getRange(r + 1, H.indexOf('ReviewRequested') + 1).setValue(now_());
+  }
+}
+
+/** Resolve a block window from the Bookings sheet's stored values (label or id). */
+function blockWindowFromLabel_(dateVal, blockLabel) {
+  var dateStr = (dateVal instanceof Date) ? Utilities.formatDate(dateVal, CONFIG.TIMEZONE, 'yyyy-MM-dd') : String(dateVal);
+  var id = null;
+  Object.keys(CONFIG.TIME_BLOCKS).forEach(function (k) { if (CONFIG.TIME_BLOCKS[k] === blockLabel) id = k; });
+  if (!id && CONFIG.BLOCK_WINDOWS[blockLabel]) id = blockLabel;            // stored as id
+  return id ? blockWindow_(dateStr, id) : null;
+}
+
+function sendReviewEmail_(name, email) {
+  var first = String(name || '').split(' ')[0] || 'there';
+  var html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#1a1a1a;max-width:600px">' +
+    '<p>Hi ' + esc_(first) + ',</p>' +
+    '<p>Thanks for spending the day on the water with us aboard <strong>' + CONFIG.BOAT_NAME + '</strong> — we hope it was a blast! 🌊</p>' +
+    '<p>If you had a great time, it would mean the world if you left us a quick <strong>Google review</strong>:</p>' +
+    '<p><a href="' + CONFIG.GOOGLE_REVIEW_URL + '" style="display:inline-block;background:#444AEB;color:#FFFDEF;font-family:Arial,sans-serif;font-weight:700;padding:13px 26px;border-radius:999px;text-decoration:none">⭐ Leave a Google review</a></p>' +
+    '<p style="color:#5f6b53">And if anything fell short, just reply to this email and tell us — we read every one and want to make it right.</p>' +
+    '<p>Hope to see you back on the water,<br>— ' + CONFIG.BUSINESS_NAME + '</p></div>';
+  GmailApp.sendEmail(email, 'How was your day aboard ' + CONFIG.BOAT_NAME + '? 🚤',
+    htmlToText_(html), { htmlBody: html, name: CONFIG.BUSINESS_NAME, replyTo: CONFIG.OWNER_EMAIL });
+}
+
+// --- JotForm reconcile (agreement payment/sign + waivers -> our sheets) ---
+/** Runs on a timer: pull new JotForm submissions into Bookings/Guests. */
+function reconcileJotform() {
+  try { reconcileAgreement_(); } catch (e) { Logger.log('Agreement reconcile error: ' + e); }
+  try { reconcileWaivers_();  } catch (e) { Logger.log('Waiver reconcile error: ' + e); }
+}
+
+function reconcileAgreement_() {
+  var sh = SpreadsheetApp.openById(CONFIG.AGREEMENT_SHEET_ID).getSheets()[0];
+  var v = sh.getDataRange().getValues();
+  if (v.length < 2) return;
+  var hdr = v[0];
+  var cBooking = findCol_(hdr, ['booking']);
+  var cAmount = findAmountCol_(hdr);
+  Logger.log('AGREEMENT cols -> bookingId=' + cBooking + ' amount=' + cAmount + ' (' + JSON.stringify(hdr) + ')');
+  var key = 'CURSOR_' + CONFIG.AGREEMENT_SHEET_ID;                    // cursor keyed by sheet id
+  var start = Number(PROPS.getProperty(key) || 1);
+  for (var i = Math.max(start, 1); i < v.length; i++) {
+    var bId = cBooking >= 0 ? String(v[i][cBooking]).trim() : '';
+    if (!bId) continue;
+    var paid = cAmount >= 0 ? parseAmount_(v[i][cAmount]) : '';
+    var fields = { AgreementSigned: now_(), Status: 'Confirmed' };
+    if (paid !== '') fields.Paid = '$' + paid;
+    if (updateBooking_(bId, fields) && paid !== '') verifyAmount_(bId, Number(paid));
+  }
+  PROPS.setProperty(key, String(v.length));
+}
+
+function reconcileWaivers_() {
+  var sh = SpreadsheetApp.openById(CONFIG.WAIVER_SHEET_ID).getSheets()[0];
+  var v = sh.getDataRange().getValues();
+  if (v.length < 2) return;
+  var hdr = v[0];
+  var cBooking = findCol_(hdr, ['booking']);
+  var cEmail = findCol_(hdr, ['email']);
+  var cName = findCol_(hdr, ['print name', 'name of charterer', 'name']);
+  var cSig = findCol_(hdr, ['signature']);
+  Logger.log('WAIVER cols -> bookingId=' + cBooking + ' email=' + cEmail + ' name=' + cName + ' sig=' + cSig + ' (' + JSON.stringify(hdr) + ')');
+  var key = 'CURSOR_' + CONFIG.WAIVER_SHEET_ID;                       // cursor keyed by sheet id
+  var start = Number(PROPS.getProperty(key) || 1);
+  for (var i = Math.max(start, 1); i < v.length; i++) {
+    var bId = cBooking >= 0 ? String(v[i][cBooking]).trim() : '';
+    var email = cEmail >= 0 ? String(v[i][cEmail]).trim() : '';
+    if (!bId || !email) continue;
+    recordWaiverSigned(bId, email, cSig >= 0 ? String(v[i][cSig]) : '', cName >= 0 ? String(v[i][cName]) : '');
+  }
+  PROPS.setProperty(key, String(v.length));
+}
+
+/** Alert Luis if the amount paid doesn't match the booking's expected price. */
+function verifyAmount_(bookingId, paid) {
+  var sh = openSS_().getSheetByName('Bookings');
+  var rows = sh.getDataRange().getValues();
+  var H = HEADERS.Bookings;
+  for (var r = 1; r < rows.length; r++) {
+    if (rows[r][H.indexOf('BookingID')] === bookingId) {
+      var expected = Number(rows[r][H.indexOf('AmountPaid')]) || 0;
+      if (expected && Math.abs(expected - paid) > 0.5) {
+        GmailApp.sendEmail(CONFIG.OWNER_EMAIL, '⚠️ Payment mismatch — ' + bookingId,
+          'Booking ' + bookingId + ' should be $' + expected + ' but the agreement was paid $' + paid +
+          '. Check the submission before the charter.');
+      }
+      return;
+    }
+  }
+}
+
+function findCol_(hdr, keywords) {
+  for (var k = 0; k < keywords.length; k++)
+    for (var c = 0; c < hdr.length; c++)
+      if (String(hdr[c]).toLowerCase().indexOf(keywords[k]) >= 0) return c;
+  return -1;
+}
+function findAmountCol_(hdr) {
+  for (var c = 0; c < hdr.length; c++) if (String(hdr[c]).toLowerCase().indexOf('product') >= 0) return c;
+  for (var c = 0; c < hdr.length; c++) {
+    var h = String(hdr[c]).toLowerCase();
+    if ((h.indexOf('amount') >= 0 || h.indexOf('total') >= 0) && h.indexOf('payer') < 0) return c;
+  }
+  return -1;
+}
+function parseAmount_(val) { var m = String(val).replace(/,/g, '').match(/(\d+(\.\d+)?)/); return m ? Number(m[1]) : ''; }
 
 // --- generic Drive / Sheet / Form utilities ---
 function getOrCreateFolder_(parent, name) {
