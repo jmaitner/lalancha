@@ -45,7 +45,7 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Confirm'];
       <h2>Captain</h2>
       <p class="muted">A USCG-licensed captain is required. Choose one:</p>
       <label class="choice"><input type="radio" name="cap" value="need" checked />
-        <span><strong>I need a captain</strong><br /><span class="muted">We'll line one up from our roster — usually $100–$150/hr, paid separately.</span></span></label>
+        <span><strong>I need a captain</strong><br /><span class="muted">We'll line one up from our roster, usually $100–$150/hr, paid separately.</span></span></label>
       <label class="choice"><input type="radio" name="cap" value="have" />
         <span><strong>I'll bring my own captain</strong><br /><span class="muted">We'll confirm their USCG credentials before the trip.</span></span></label>
       <div class="nav-row">
@@ -66,7 +66,7 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Confirm'];
         <label class="fld">Phone<input id="phone" inputmode="tel" /></label>
       </div>
       <label class="fld">Party size<select id="partySize"></select></label>
-      <label class="fld">Guest emails <span class="muted">(enter now if you have them — otherwise you can add them later)</span>
+      <label class="fld">Guest emails <span class="muted">(enter now if you have them. You can add them later.)</span>
         <textarea id="guestEmails" rows="2" placeholder="one email per line"></textarea>
       </label>
       <label class="fld">Add-ons / requests <span class="muted">(optional)</span>
@@ -152,7 +152,7 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Confirm'];
           priceEl.textContent = '$' + (prices[id] ?? DEFAULT_BLOCK_PRICE);
         }
       });
-      hint.textContent = anyOpen ? '👇 Choose your time block' : '😕 Fully booked this day — try another date.';
+      hint.textContent = anyOpen ? '👇 Choose your time block' : '😕 Fully booked this day. Try another date.';
     }
     cards.forEach(c => c.addEventListener('click', () => {
       cards.forEach(x => x.classList.remove('sel'));
@@ -219,14 +219,14 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Confirm'];
         });
         const out = await res.json();
         if (out && out.error === 'slot_taken') {
-          msg.textContent = 'Ah — that slot was just booked. Please pick another time.';
+          msg.textContent = 'That slot was just booked. Please pick another time.';
           msg.className = 'form-msg err'; btn.disabled = false;
           setStep(1); loadPricing(); return;
         }
         if (out.ok) {
           document.querySelector('[data-panel="4"]').innerHTML =
             `<h2>You're booked! 🎉</h2>
-             <p>Confirmation <strong>${out.bookingId}</strong> is on its way to your inbox — dock directions,
+             <p>Confirmation <strong>${out.bookingId}</strong> is on its way to your inbox. Dock directions,
              the charter agreement, the guest waiver, and your secure payment link.</p>
              <p class="muted">${payload.captainStatus === 'need'
                ? "We're already reaching out to captains and will confirm one shortly." : ''}</p>
@@ -234,7 +234,7 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Confirm'];
           window.scrollTo({ top: 0, behavior: 'smooth' });
         } else { throw new Error(out.error || 'error'); }
       } catch (err) {
-        msg.textContent = "Something went wrong — email lalanchacharters@gmail.com and we'll sort it out.";
+        msg.textContent = "Something went wrong. Email lalanchacharters@gmail.com and we'll sort it out.";
         msg.className = 'form-msg err'; btn.disabled = false;
       }
     });

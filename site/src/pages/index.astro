@@ -11,7 +11,7 @@ const siteLd = {
       description: 'Private boat charters aboard Quarters on Lake Michigan, Chicago.' },
     { '@type': ['LocalBusiness', 'TouristAttraction'], name: 'lancha boat',
       image: new URL('/og.jpg', site).href, url: site.href, email: 'lalanchacharters@gmail.com',
-      description: 'Private boat charters aboard Quarters on Lake Michigan — morning, afternoon, and night charters from Diversey Harbor, Chicago. Bareboat model with a USCG-licensed captain.',
+      description: 'Private boat charters aboard Quarters on Lake Michigan: morning, afternoon, and night charters from Diversey Harbor, Chicago. Bareboat model with a USCG-licensed captain.',
       address: { '@type': 'PostalAddress', streetAddress: 'Diversey Harbor, K-Dock Slip 8', addressLocality: 'Chicago', addressRegion: 'IL', addressCountry: 'US' },
       areaServed: 'Chicago, Lake Michigan', priceRange: '$$' },
   ],
@@ -34,7 +34,7 @@ const gallery = [
     <div class="hero-text">
       <p class="kicker">Chicago · Lake Michigan</p>
       <h1>Your boat,<br />your <span class="scr">crew</span>,<br />your day on the water.</h1>
-      <p class="lede">Private charters aboard <em>Quarters</em> — morning, afternoon, or night.
+      <p class="lede">Private charters aboard <em>Quarters</em>: morning, afternoon, or night.
         We line up the captain and handle the paperwork. You bring your own whatever.</p>
       <div class="hero-cta">
         <a class="btn" href="/book">Check dates &amp; book</a>
@@ -85,18 +85,18 @@ const gallery = [
     <div class="wrap">
       <h2 class="sec-head light">How chartering works</h2>
       <p class="lede2">We run a <strong>bareboat / demise charter</strong>: the boat is legally yours for the trip.
-        That means the captain and fuel are arranged separately — here's the simple version.</p>
+        That means the captain and fuel are arranged separately. Here's the simple version.</p>
       <div class="grid-2">
         <div class="step"><span class="num">1</span><h3>Book the boat</h3>
           <p>Pick a date and time block. You get an instant confirmation with everything you need.</p></div>
         <div class="step"><span class="num">2</span><h3>We line up a captain</h3>
-          <p>We keep a roster of USCG-licensed captains who know Quarters — usually <strong>$100–$150/hr</strong>,
+          <p>We keep a roster of USCG-licensed captains who know Quarters, usually <strong>$100–$150/hr</strong>,
              paid separately. Bringing your own? Even better.</p></div>
         <div class="step"><span class="num">3</span><h3>Sign &amp; set sail</h3>
           <p>You sign the charter agreement, your guests sign a quick waiver, and you meet the boat at the dock.</p></div>
         <div class="step"><span class="num">4</span><h3>Fuel after the trip</h3>
           <p>Stay at the Playpen for a <strong>flat $25</strong>, or roam beyond it for <strong>$25/hr</strong>
-             of engine time — invoiced afterward.</p></div>
+             of engine time, invoiced afterward.</p></div>
       </div>
     </div>
   </section>
@@ -105,7 +105,7 @@ const gallery = [
   <section id="inquire" class="wrap section">
     <div class="card inquire-card">
       <h2>Got a question first?</h2>
-      <p class="muted">Drop a note — Luis will follow up with availability and details.</p>
+      <p class="muted">Drop a note. Luis will follow up with availability and details.</p>
       <form id="lead-form" class="form">
         <div class="row">
           <label>Name<input name="name" required /></label>
@@ -148,7 +148,7 @@ const gallery = [
         if (out.ok) { form.reset(); msg.textContent = 'Thanks! Luis will be in touch soon. 🌊'; msg.className = 'form-msg ok'; }
         else throw new Error(out.error || 'error');
       } catch (err) {
-        msg.textContent = 'Something went wrong — email lalanchacharters@gmail.com.'; msg.className = 'form-msg err';
+        msg.textContent = 'Something went wrong. Email lalanchacharters@gmail.com.'; msg.className = 'form-msg err';
       } finally { btn.disabled = false; }
     });
   </script>
