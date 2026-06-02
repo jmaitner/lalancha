@@ -40,13 +40,18 @@ const gallery = [
         <a class="btn" href="/book">Check dates &amp; book</a>
         <a class="btn gold" href="#how">How it works</a>
       </div>
-      <p class="dock">⚓ {DOCK}</p>
+      <p class="dock"><img src="/brand/lifesavers.svg" alt="" class="dock-icon" aria-hidden="true" />{DOCK}</p>
     </div>
     <div class="hero-photo">
       <img src="/images/quarters9.jpg" alt="Guests aboard Quarters with the Chicago skyline behind" />
       <span class="photo-tag">aboard Quarters</span>
     </div>
   </section>
+
+  <!-- WAVE DIVIDER -->
+  <div class="wave-divider" aria-hidden="true">
+    <img src="/brand/summerwave.svg" alt="" />
+  </div>
 
   <!-- BLOCKS -->
   <section class="wrap section">
@@ -157,11 +162,15 @@ const gallery = [
     .hero h1 .scr { font-family: var(--script); color: var(--magenta); font-weight: 400; }
     .lede { font-size: 19px; max-width: 520px; margin: 18px 0 0; }
     .hero-cta { display: flex; gap: 14px; flex-wrap: wrap; margin: 26px 0 14px; }
-    .dock { font-weight: 600; font-size: 15px; color: var(--ink); }
+    .dock { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; color: var(--ink); }
+    .dock-icon { height: 28px; width: auto; flex-shrink: 0; }
     .hero-photo { position: relative; }
     .hero-photo img { width: 100%; border: 3px solid var(--ink); border-radius: 22px; box-shadow: 8px 8px 0 var(--blue); display: block; aspect-ratio: 4/5; object-fit: cover; }
     .photo-tag { position: absolute; bottom: 16px; left: -10px; background: var(--gold); border: 2px solid var(--ink); border-radius: 999px;
                  font-family: var(--script); font-size: 22px; padding: 4px 18px; transform: rotate(-3deg); }
+
+    .wave-divider { width: 100%; overflow: hidden; line-height: 0; margin-top: 40px; }
+    .wave-divider img { width: 100%; display: block; max-height: 80px; object-fit: cover; }
 
     .section { margin-top: 56px; }
     .sec-head { font-size: clamp(28px, 4.5vw, 44px); font-weight: 800; }
