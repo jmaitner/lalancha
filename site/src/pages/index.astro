@@ -49,7 +49,9 @@ const gallery = [
   </section>
 
   <!-- WAVE DIVIDER -->
-  <div class="wave-divider" aria-hidden="true"></div>
+  <div class="wave-divider" aria-hidden="true">
+    <img src="/brand/summerwave.svg" alt="" />
+  </div>
 
   <!-- BLOCKS -->
   <section class="wrap section">
@@ -167,10 +169,8 @@ const gallery = [
     .photo-tag { position: absolute; bottom: 16px; left: -10px; background: var(--gold); border: 2px solid var(--ink); border-radius: 999px;
                  font-family: var(--script); font-size: 22px; padding: 4px 18px; transform: rotate(-3deg); }
 
-    .wave-divider {
-      width: 100%; height: 60px; margin-top: 40px;
-      background: url('/brand/summerwave.svg') repeat-x center / auto 60px;
-    }
+    .wave-divider { text-align: center; margin-top: 48px; }
+    .wave-divider img { width: 260px; height: auto; display: inline-block; }
 
     .section { margin-top: 56px; }
     .sec-head { font-size: clamp(28px, 4.5vw, 44px); font-weight: 800; }
