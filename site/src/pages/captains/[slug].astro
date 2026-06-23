@@ -9,8 +9,10 @@ export function getStaticPaths() {
 const { slug } = Astro.params;
 const cap = captains.find((c) => c.slug === slug)!;
 
-// Split photos: first 3 go into the overlap stack, rest go in the bottom strip.
-const [p1, p2, p3, ...stripPhotos] = cap.photos;
+// Normalize each photo to { src, pos?, offset? } so a plain filename still works.
+const photos = cap.photos.map((p) => (typeof p === 'string' ? { src: p } : p));
+// Split: first 3 go into the overlap stack, the rest into the bottom strip.
+const [p1, p2, p3, ...stripPhotos] = photos;
 
 // Only render the parts of the credentials card that have data.
 const hasCreds = !!(cap.credentials && cap.credentials.length);
@@ -39,13 +41,13 @@ const hasStats = hasCreds || hasExtra;
     <div class="stack-col">
       <div class="photo-stack">
         <figure class="sp sp1">
-          <img src={`/images/${p1}.jpg`} alt={`${cap.handle} aboard Quarters`} />
+          <img src={`/images/${p1.src}.jpg`} alt={`${cap.handle} aboard Quarters`} style={p1.pos ? `object-position:${p1.pos}` : undefined} />
         </figure>
         <figure class="sp sp2">
-          <img src={`/images/${p2}.jpg`} alt={`${cap.handle} on Lake Michigan`} loading="lazy" />
+          <img src={`/images/${p2.src}.jpg`} alt={`${cap.handle} on Lake Michigan`} loading="lazy" style={p2.pos ? `object-position:${p2.pos}` : undefined} />
         </figure>
         <figure class="sp sp3">
-          <img src={`/images/${p3}.jpg`} alt="Aboard Quarters, Chicago" loading="lazy" />
+          <img src={`/images/${p3.src}.jpg`} alt="Aboard Quarters, Chicago" loading="lazy" style={p3.pos ? `object-position:${p3.pos}` : undefined} />
         </figure>
       </div>
     </div>
@@ -88,8 +90,8 @@ const hasStats = hasCreds || hasExtra;
     <section class="wrap strip-sec">
       <div class="strip-grid">
         {stripPhotos.map((ph, i) => (
-          <figure class={`strip-item si-${i % 3}`}>
-            <img src={`/images/${ph}.jpg`} alt="Aboard Quarters" loading="lazy" />
+          <figure class={`strip-item si-${i % 3}`} style={ph.offset ? `margin-top:${ph.offset}` : undefined}>
+            <img src={`/images/${ph.src}.jpg`} alt="Aboard Quarters" loading="lazy" style={ph.pos ? `object-position:${ph.pos}` : undefined} />
           </figure>
         ))}
       </div>
@@ -175,6 +177,7 @@ const hasStats = hasCreds || hasExtra;
     height: 100%;
     display: block;
     object-fit: cover;
+    object-position: center top; /* keep heads in frame; per-photo `pos` overrides */
   }
 
   /* Photo 1: largest, top-left, slight counter-clockwise tilt */

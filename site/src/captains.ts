@@ -10,6 +10,12 @@
 // in the order listed. `extraStats` is optional key/value rows (years on the
 // water, home waters, etc.) if we add them later.
 
+// A photo is either a filename (in /images, no extension) or an object with
+// optional framing controls: `pos` = CSS object-position (e.g. 'left center',
+// 'center top') to keep the subject in frame; `offset` = vertical nudge for a
+// bottom-strip photo (e.g. '-16px' to move up, '64px' to move down).
+export type Photo = string | { src: string; pos?: string; offset?: string };
+
 export interface CaptainStat {
   label: string;
   value: string;
@@ -21,7 +27,7 @@ export interface Captain {
   handle: string;         // display name used in copy, e.g. "Captain Charlie"
   tagline: string;        // one punchy line under the hero name
   bio: string;            // warm paragraph bio, 3-5 sentences
-  photos: string[];       // 5+ image filenames in /images/ (no .jpg extension)
+  photos: Photo[];        // filenames in /images/ (no .jpg ext), or {src,pos,offset}
                           // order matters: [0-2] = hero stack, [3+] = bottom strip
   credentials: string[];  // licenses + certifications, shown as badges
   extraStats?: CaptainStat[];
@@ -35,7 +41,13 @@ export const captains: Captain[] = [
     tagline: 'The captain who makes the whole day feel easy.',
     // PLACEHOLDER bio — replace with Charlie's real bio.
     bio: 'Placeholder copy. Charlie is the captain you want when you want the day to just flow. Easygoing, quick with a story, and dialed into where the good light and calm water are on any given afternoon. He treats every charter like he is showing friends his favorite stretch of the lake.',
-    photos: ['charlie-1', 'charlie-2', 'charlie-3', 'charlie-4'],
+    photos: [
+      'charlie-5',                              // selfie, clear face -> lead + crew card
+      { src: 'charlie-2', pos: 'left center' }, // pilot/Cessna, Charlie is on the left
+      'charlie-1',                              // sailing (Bacardi shot)
+      'charlie-6',                              // bow, orange vest, skyline
+      'charlie-4',                              // sailboat with crew
+    ],
     credentials: [
       'Master 100 Great Lakes',
       'FCC MROP License',
@@ -66,9 +78,16 @@ export const captains: Captain[] = [
     name: 'Joseph',
     handle: 'Captain Joseph',
     tagline: 'Steady hands, quiet water, perfect timing.',
-    // PLACEHOLDER bio — replace with Joseph's real bio.
-    bio: 'Placeholder copy. Joseph brings a steady hand and a deep love of the water to every trip. He is happiest finding the quiet pockets of the lakefront and timing the skyline just right. Calm, capable, and always thinking a step ahead so your crew can kick back.',
-    photos: ['joseph-1', 'joseph-2', 'joseph-3', 'joseph-4', 'joseph-5', 'joseph-6', 'joseph-7'],
+    bio: "Captain Joseph Crulcich is a USCG-licensed mariner with 15+ years of experience spanning commercial shipping, yacht deliveries, and luxury charters. A Chicago native who grew up boating on Lake Michigan, he started at Shoreline Sightseeing before spending nine years with Military Sealift Command, rising to Second Mate. He's sailed all seven seas, visited 55+ countries, and transited the Panama, Suez, and Kiel Canals. He currently serves as Third Mate with Grand River Navigation on the Great Lakes, holds a 500-Ton Master License and TOAR, and is pursuing his 1,600-Ton Master License. Since 2015 he's also worked as a yacht and charter captain, and since 2022 as a delivery captain with Spring Brook Marine. Guests know him for pairing top-tier seamanship with an easygoing, hospitality-first approach making every trip safe, professional, and genuinely fun.",
+    photos: [
+      'joseph-1',
+      { src: 'joseph-2', pos: 'left center' }, // selfie, Joseph is front-left
+      'joseph-6',                              // standing shot, swapped into the stack
+      'joseph-4',
+      'joseph-5',
+      'joseph-3',                              // helm-with-kid, swapped out of the stack
+      'joseph-7',
+    ],
     credentials: [
       '1600 Ton Master',
       'Master 100 Near Coastal',
@@ -85,7 +104,12 @@ export const captains: Captain[] = [
     tagline: 'The owner, the operator, and the guy who started it all.',
     // PLACEHOLDER bio — replace with Luis's real bio.
     bio: 'Placeholder copy. Luis is the owner and operator of lancha boat and the captain who started it all. He built Quarters into a private charter you can actually relax on, and he still loves nothing more than a full boat and a flat lake. He runs every trip with care, good humor, and an eye for the perfect spot.',
-    photos: ['luis-1', 'luis-2', 'luis-3', 'luis-4', 'luis-5', 'luis-6'],
+    photos: [
+      'luis-1', 'luis-2', 'luis-3',
+      { src: 'luis-4', offset: '-16px' }, // nudge up slightly
+      'luis-5',
+      { src: 'luis-6', offset: '64px' },  // scoot down
+    ],
     credentials: [
       'Master 100 Great Lakes',
       'OUPV Near Coastal',

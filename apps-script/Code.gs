@@ -32,7 +32,7 @@ const CONFIG = {
   // --- Money ---
   // Fuel rule: if the captain's post-charter report says the trip stayed at the
   // Playpen -> flat fee; anywhere else -> hourly on engine time.
-  FUEL_PLAYPEN_FLAT: 25,    // flat fuel fee for Playpen-only trips
+  FUEL_PLAYPEN_FLAT: 50,    // flat fuel fee for Playpen-only trips
   FUEL_HOURLY_RATE:  25,    // $/hr of engine time for trips beyond the Playpen
   CAPTAIN_RATE_LOW:  100,   // $/hr, low end
   CAPTAIN_RATE_HIGH: 150,   // $/hr, high end (weekend / high demand)
@@ -118,7 +118,7 @@ function setupLaLanchaSystem() {
   // Seed template docs that get copied into each charter folder
   getOrCreateDoc_(templates, 'Fuel Policy',
     'FUEL POLICY — ' + CONFIG.BOAT_NAME + '\n\nFuel is yours to arrange under the bareboat model. '
-    + 'You may top off on the way back in, or we invoice a flat rate of $' + CONFIG.FUEL_FLAT_RATE
+    + 'You may top off on the way back in, or we invoice a flat rate of $' + CONFIG.FUEL_PLAYPEN_FLAT
     + ' after the trip (most guests prefer the flat rate). Invoice sent via Stripe.');
   getOrCreateDoc_(templates, 'General Info',
     'WELCOME ABOARD ' + CONFIG.BOAT_NAME.toUpperCase() + '\n\nArrival, parking, what to bring, '
@@ -223,7 +223,7 @@ function createHandoffDoc() {
   li('You get an email for every booking (flagged when a captain is needed).');
   li('Payment, agreement, and waivers flow back into your sheet (Paid / Agreement / Waiver), checked every 10 minutes.');
   li('If someone pays the wrong amount, you get a warning email.');
-  li('Fuel is calculated from the captain’s post-charter report (Playpen = flat $25, otherwise $25/hr).');
+  li('Fuel is calculated from the captain’s post-charter report (Playpen = flat $50, otherwise $25/hr).');
   li('A daily digest lists who still hasn’t signed a waiver.');
   li('A Google review request goes out after each charter (unhappy feedback routes privately to you).');
   li('Every inquiry is captured as a lead.');
@@ -254,7 +254,7 @@ function createHandoffDoc() {
     ['Item', 'Amount', 'How it’s collected'],
     ['Charter fee', '$880 per time block', 'Stripe, inside the Charter Agreement'],
     ['Captain', '~$100–$150/hr', 'Paid separately, directly to the captain'],
-    ['Fuel', '$25 flat (Playpen) or $25/hr (beyond)', 'Invoiced after the trip'],
+    ['Fuel', '$50 flat (Playpen) or $25/hr (beyond)', 'Invoiced after the trip'],
   ]);
 
   h1('6. What’s done, and what’s left');

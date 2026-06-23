@@ -18,7 +18,7 @@ Raw source photos are in `Assetts/` (gitignored, local only); optimized web copi
 2. Apps Script (`createBooking`): checks the **Quarters Charters** Google Calendar for a free slot (race guard) → creates a calendar event (auto-confirm) → makes a Drive folder → logs the **Bookings** row → seeds the **Guests** roster → emails the guest (Luis's onboarding template w/ prefilled JotForm links) → emails Luis.
 3. Customer signs **JotForm Charter Agreement** (`260923725423052`) + **pays via Stripe** (User Defined Amount, prefilled from the booking link). Guests sign **JotForm Waiver** (`261307203350039`).
 4. JotForm → Google Sheets (native integration). A timer (`reconcileJotform`, every 10 min) reads those sheets and stamps **Paid / AgreementSigned / WaiverSigned** onto Bookings/Guests, and alerts on amount mismatches.
-5. Captain fills the **Captain Post-Charter Report** (Google Form) → `onCaptainFormSubmit` computes fuel (Playpen flat $25, else $25/hr) → writes it to the booking + emails Luis what to invoice.
+5. Captain fills the **Captain Post-Charter Report** (Google Form) → `onCaptainFormSubmit` computes fuel (Playpen flat $50, else $25/hr) → writes it to the booking + emails Luis what to invoice.
 6. Daily triggers: waiver-reminder digest (9am), Google-review request to finished charters (10am).
 
 ## Key files
