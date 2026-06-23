@@ -30,10 +30,9 @@ const CONFIG = {
   TIMEZONE:      'America/Chicago',
 
   // --- Money ---
-  // Fuel rule: if the captain's post-charter report says the trip stayed at the
-  // Playpen -> flat fee; anywhere else -> hourly on engine time.
-  FUEL_PLAYPEN_FLAT: 50,    // flat fuel fee for Playpen-only trips
-  FUEL_HOURLY_RATE:  25,    // $/hr of engine time for trips beyond the Playpen
+  // Fuel rule: every website booking gets the same flat fee (direct-lead deal),
+  // regardless of destination or engine hours.
+  FUEL_FLAT_RATE: 50,    // flat fuel fee for all website bookings
   CAPTAIN_RATE_LOW:  100,   // $/hr, low end
   CAPTAIN_RATE_HIGH: 150,   // $/hr, high end (weekend / high demand)
   DEFAULT_BLOCK_PRICE: 880, // standard price per time segment; overridable per date in the Pricing tab
@@ -118,7 +117,7 @@ function setupLaLanchaSystem() {
   // Seed template docs that get copied into each charter folder
   getOrCreateDoc_(templates, 'Fuel Policy',
     'FUEL POLICY — ' + CONFIG.BOAT_NAME + '\n\nFuel is yours to arrange under the bareboat model. '
-    + 'You may top off on the way back in, or we invoice a flat rate of $' + CONFIG.FUEL_PLAYPEN_FLAT
+    + 'You may top off on the way back in, or we invoice a flat rate of $' + CONFIG.FUEL_FLAT_RATE
     + ' after the trip (most guests prefer the flat rate). Invoice sent via Stripe.');
   getOrCreateDoc_(templates, 'General Info',
     'WELCOME ABOARD ' + CONFIG.BOAT_NAME.toUpperCase() + '\n\nArrival, parking, what to bring, '
@@ -223,7 +222,7 @@ function createHandoffDoc() {
   li('You get an email for every booking (flagged when a captain is needed).');
   li('Payment, agreement, and waivers flow back into your sheet (Paid / Agreement / Waiver), checked every 10 minutes.');
   li('If someone pays the wrong amount, you get a warning email.');
-  li('Fuel is calculated from the captain’s post-charter report (Playpen = flat $50, otherwise $25/hr).');
+  li('Fuel is calculated from the captain’s post-charter report (a flat $50 for every charter).');
   li('A daily digest lists who still hasn’t signed a waiver.');
   li('A Google review request goes out after each charter (unhappy feedback routes privately to you).');
   li('Every inquiry is captured as a lead.');
@@ -254,7 +253,7 @@ function createHandoffDoc() {
     ['Item', 'Amount', 'How it’s collected'],
     ['Charter fee', '$880 per time block', 'Stripe, inside the Charter Agreement'],
     ['Captain', '~$100–$150/hr', 'Paid separately, directly to the captain'],
-    ['Fuel', '$50 flat (Playpen) or $25/hr (beyond)', 'Invoiced after the trip'],
+    ['Fuel', '$50 flat per charter', 'Invoiced after the trip'],
   ]);
 
   h1('6. What’s done, and what’s left');
@@ -519,7 +518,6 @@ function onCaptainFormSubmit(e) {
   const destination = a['Destinations'] || '';
   const engineHours = parseFloat(a['Engine Hours use Est']) || 0;
   const fuel        = computeFuel_(destination, engineHours);
-  const isPlaypen   = String(destination).trim().toLowerCase() === 'playpen';
 
   const matched = updateBookingByDateName_(date, partyName, {
     Destination: destination, EngineHours: engineHours, FuelDue: fuel, CaptainAssigned: captain
@@ -532,17 +530,16 @@ function onCaptainFormSubmit(e) {
     'Destination: ' + destination + '\n' +
     'Engine hours: ' + engineHours + '\n\n' +
     '➡ Fuel to invoice via Stripe: $' + fuel +
-    (isPlaypen ? '  (flat Playpen rate)' : '  (' + engineHours + ' hr × $' + CONFIG.FUEL_HOURLY_RATE + '/hr)') +
+    '  (flat rate)' +
     '\n\n' + (matched ? 'Booking row updated.' : '⚠ No matching booking found — check the Party Name/Date.') +
     '\nFull report is in the form-responses tab.');
 }
 
-/** Fuel rule: destination is exactly "Playpen" -> flat fee; anything else
- *  (Navy Pier, Monroe/Playpen South, River, Burnham/Northerly, Other) -> hourly. */
+/** Fuel: a flat fee for every website booking (Luis's direct-lead deal).
+ *  Destination and engine hours are still logged on the booking for records,
+ *  but they no longer change the fee. */
 function computeFuel_(destination, engineHours) {
-  return String(destination).trim().toLowerCase() === 'playpen'
-    ? CONFIG.FUEL_PLAYPEN_FLAT
-    : (Number(engineHours) || 0) * CONFIG.FUEL_HOURLY_RATE;
+  return CONFIG.FUEL_FLAT_RATE;
 }
 
 /** Update fields on an existing Bookings row, matched by BookingID. */
@@ -696,7 +693,7 @@ function sendBookingConfirmation_(data, bookingId) {
     '<p>We operate under a <strong>bareboat/demise charter model</strong>. This means the vessel is legally released to you, as if it were yours for the trip. Because you take operational control, things like captains, fuel, food, and drinks are yours to arrange.</p>' +
     '<p>' + captainPara + '</p>' +
     '<p>The expected rate for a captain is between <strong>$' + CONFIG.CAPTAIN_RATE_LOW + '/hr and $' + CONFIG.CAPTAIN_RATE_HIGH + '/hr</strong> depending on the weekend and demand for that captain.</p>' +
-    '<p>Fuel works the same way — you can top off on the way back in, or we invoice it after the trip: a <strong>flat $' + CONFIG.FUEL_PLAYPEN_FLAT + '</strong> if we stay at the Playpen, or <strong>$' + CONFIG.FUEL_HOURLY_RATE + '/hr</strong> of engine time if you head beyond it. Most guests prefer to have us invoice it for simplicity and to keep that extra time on the water.</p>' +
+    '<p>Fuel works the same way: you can top off on the way back in, or we invoice a <strong>flat $' + CONFIG.FUEL_FLAT_RATE + '</strong> after the trip, wherever you go. Most guests prefer to have us invoice it for simplicity and to keep that extra time on the water.</p>' +
     '<p>We believe these are the easiest and most legally compliant interpretations of the law. Other operators may interpret some of these regulations differently, though we all share the same rigorous compliance with USCG vessel safety standards.</p>' +
     '<p>Please fill out the <strong>Charter Agreement</strong>, and have all of your other guests fill out the <strong>Guest Waiver</strong>:</p>' +
     '<ul>' +

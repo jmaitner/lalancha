@@ -87,7 +87,7 @@ export const captains: Captain[] = [
       'joseph-7',
     ],
     credentials: [
-      '1600 Ton Master',
+      '500 Ton Master',
       'Master 100 Near Coastal',
       'First Class Pilotage',
       'FCC MROP License',
