@@ -11,6 +11,11 @@ const cap = captains.find((c) => c.slug === slug)!;
 
 // Split photos: first 3 go into the overlap stack, rest go in the bottom strip.
 const [p1, p2, p3, ...stripPhotos] = cap.photos;
+
+// Only render the parts of the credentials card that have data.
+const hasCreds = !!(cap.credentials && cap.credentials.length);
+const hasExtra = !!(cap.extraStats && cap.extraStats.length);
+const hasStats = hasCreds || hasExtra;
 ---
 <Base
   title={`${cap.handle} · Captains · lancha boat`}
@@ -52,35 +57,27 @@ const [p1, p2, p3, ...stripPhotos] = cap.photos;
       </div>
 
       <div class="card stats-card">
-        <p class="stats-kicker">The details</p>
-        <ul class="stats-list">
-          <li>
-            <span class="stat-key">License</span>
-            <span class="stat-val">{cap.license}</span>
-          </li>
-          <li>
-            <span class="stat-key">On the water</span>
-            <span class="stat-val">{cap.years}</span>
-          </li>
-          <li>
-            <span class="stat-key">Home waters</span>
-            <span class="stat-val">{cap.homeWaters}</span>
-          </li>
-          <li>
-            <span class="stat-key">Certifications</span>
-            <span class="stat-val">{cap.certs.join(' · ')}</span>
-          </li>
-          <li>
-            <span class="stat-key">Favorite route</span>
-            <span class="stat-val">{cap.favoriteRoute}</span>
-          </li>
-          {cap.extraStats?.map((s) => (
-            <li>
-              <span class="stat-key">{s.label}</span>
-              <span class="stat-val">{s.value}</span>
-            </li>
-          ))}
-        </ul>
+        <p class="stats-kicker">Licenses &amp; Certifications</p>
+        {hasStats ? (
+          <>
+            {hasCreds && (
+              <ul class="cred-list">
+                {cap.credentials.map((c) => (
+                  <li class="cred">{c}</li>
+                ))}
+              </ul>
+            )}
+            {hasExtra && (
+              <ul class="stats-list">
+                {cap.extraStats!.map((s) => (
+                  <li><span class="stat-key">{s.label}</span><span class="stat-val">{s.value}</span></li>
+                ))}
+              </ul>
+            )}
+          </>
+        ) : (
+          <p class="stats-empty muted">Captain details coming soon.</p>
+        )}
       </div>
     </div>
 
@@ -172,7 +169,10 @@ const [p1, p2, p3, ...stripPhotos] = cap.photos;
     position: relative;
   }
   .sp img {
+    position: absolute;
+    inset: 0;
     width: 100%;
+    height: 100%;
     display: block;
     object-fit: cover;
   }
@@ -260,6 +260,43 @@ const [p1, p2, p3, ...stripPhotos] = cap.photos;
     font-size: 15px;
     font-weight: 600;
     line-height: 1.4;
+  }
+  .stats-empty {
+    margin: 0;
+    font-size: 15px;
+    font-style: italic;
+  }
+
+  /* Credential badges */
+  .cred-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .cred {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: .01em;
+    line-height: 1.2;
+    padding: 7px 13px;
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    background: var(--cream);
+    color: var(--ink);
+  }
+  /* Highlight the top license */
+  .cred:first-child {
+    background: var(--gold);
+  }
+  /* Optional extra key/value rows sit below the badges */
+  .cred-list + .stats-list {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
   }
 
   /* ── BOTTOM PHOTO STRIP ────────────────────────────── */

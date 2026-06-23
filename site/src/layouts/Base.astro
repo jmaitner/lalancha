@@ -1,4 +1,5 @@
 ---
+import { captains } from '../captains.ts';
 const {
   title = 'lancha boat · private charters aboard Quarters',
   description = 'Private boat charters on Lake Michigan aboard Quarters. Good times on water, chill with friends & fam, bring your own whatever. Based in Chicago at Diversey Harbor.',
@@ -40,6 +41,15 @@ const ogImage = image.startsWith('http') ? image : new URL(image, base).href;
       </a>
       <nav>
         <a href="/#how">How it works</a>
+        <div class="dropdown">
+          <a class="dropbtn" href="/crew" aria-haspopup="true">Crew<span class="caret" aria-hidden="true">▾</span></a>
+          <div class="dropdown-menu">
+            {captains.map((c) => (
+              <a href={`/captains/${c.slug}`}>{c.handle}</a>
+            ))}
+            <a class="dropdown-all" href="/crew">All crew →</a>
+          </div>
+        </div>
         <a href="/#inquire">Questions</a>
         <a class="btn btn-sm" href="/book">Book now</a>
       </nav>
@@ -132,6 +142,31 @@ const ogImage = image.startsWith('http') ? image : new URL(image, base).href;
       .nav nav a.btn { color: var(--cream); }
       .nav nav a.btn.gold { color: var(--ink); }
 
+      /* nav dropdown (Captains) */
+      .dropdown { position: relative; display: inline-flex; align-items: center; }
+      .dropbtn { background: none; border: 0; margin: 0; padding: 0; cursor: pointer;
+                 color: var(--ink); font-family: var(--sans); font-weight: 600; font-size: 15px;
+                 display: inline-flex; align-items: center; gap: 5px; line-height: 1; }
+      .dropbtn:hover { color: var(--blue); }
+      .caret { font-size: 10px; transition: transform .15s ease; }
+      .dropdown:hover .caret, .dropdown:focus-within .caret { transform: rotate(180deg); }
+      /* invisible bridge keeps the menu open while moving the cursor down to it */
+      .dropdown::after { content: ''; position: absolute; left: -10px; right: -10px; top: 100%; height: 18px; }
+      .dropdown-menu {
+        position: absolute; top: calc(100% + 14px); left: 50%; transform: translateX(-50%);
+        min-width: 210px; background: var(--cream); border: 2px solid var(--ink);
+        border-radius: 14px; box-shadow: 5px 5px 0 var(--ink); padding: 8px;
+        display: flex; flex-direction: column; gap: 2px; z-index: 40;
+        opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .14s ease;
+      }
+      .dropdown:hover .dropdown-menu, .dropdown:focus-within .dropdown-menu {
+        opacity: 1; visibility: visible; pointer-events: auto;
+      }
+      .dropdown-menu a { display: block; padding: 9px 14px; border-radius: 8px; white-space: nowrap;
+                         color: var(--ink); text-decoration: none; font-weight: 600; font-size: 15px; }
+      .dropdown-menu a:hover { background: var(--blue); color: var(--cream); }
+      .dropdown-menu .dropdown-all { margin-top: 4px; padding-top: 11px; border-top: 1px solid var(--line); color: var(--blue); font-size: 14px; }
+
       /* buttons */
       .btn { display: inline-block; background: var(--blue); color: var(--cream); font-family: var(--display); font-weight: 700;
              padding: 14px 26px; border-radius: 999px; text-decoration: none; border: 2px solid var(--ink); cursor: pointer;
@@ -162,6 +197,7 @@ const ogImage = image.startsWith('http') ? image : new URL(image, base).href;
         .nav { padding: 12px 16px; }
         .nav nav { gap: 12px; }
         .nav nav a:not(.btn) { display: none; }
+        .dropdown { display: none; }
         .logo-svg { height: 36px; }
         .ticker-track { font-size: 12px; }
       }

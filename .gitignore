@@ -7,6 +7,7 @@ dist/
 
 # raw source media — kept local only; optimized copies live in site/public/images
 Assetts/
+site/Captain images/
 
 # tooling / editor
 .claude/

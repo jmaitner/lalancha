@@ -1,0 +1,139 @@
+---
+import Base from '../layouts/Base.astro';
+import { captains } from '../captains.ts';
+import { crewGroups } from '../crew.ts';
+
+const title = 'Our Crew · Captains, Deck Hands & Dock Attendants | lancha boat';
+const description =
+  'Meet the crew behind Quarters: USCG-licensed captains, plus the deck hands and dock attendants who keep your private Chicago boat charter running smooth.';
+---
+<Base title={title} description={description}>
+
+  <!-- HERO -->
+  <section class="wrap crew-hero">
+    <p class="kicker">ABOARD QUARTERS</p>
+    <h1>Meet the <span class="scr">crew</span></h1>
+    <p class="lede">The people who make your day on the water easy: licensed captains at the helm,
+      plus the deck hands and dock attendants who keep everything running.</p>
+  </section>
+
+  <!-- CAPTAINS -->
+  <section class="wrap crew-sec">
+    <div class="sec-top">
+      <h2 class="sec-head">Captains</h2>
+      <p class="sec-blurb">USCG-licensed and ready at the helm.</p>
+    </div>
+    <div class="crew-grid">
+      {captains.map((c) => (
+        <a class="crew-card" href={`/captains/${c.slug}`}>
+          <div class="crew-photo">
+            <img src={`/images/${c.photos[0]}.jpg`} alt={c.handle} loading="lazy" />
+            <span class="role-pill">Captain</span>
+          </div>
+          <div class="crew-body">
+            <h3>{c.handle}</h3>
+            <p class="crew-tagline">{c.tagline}</p>
+            <span class="crew-link">View profile →</span>
+          </div>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <!-- OTHER CREW ROLES -->
+  {crewGroups.map((g) => (
+    <section class="wrap crew-sec">
+      <div class="sec-top">
+        <h2 class="sec-head">{g.plural}</h2>
+        {g.blurb && <p class="sec-blurb">{g.blurb}</p>}
+      </div>
+      {g.members.length > 0 ? (
+        <div class="crew-grid">
+          {g.members.map((m) => (
+            <div class="crew-card static">
+              <div class="crew-photo">
+                {m.photo
+                  ? <img src={`/images/${m.photo}.jpg`} alt={m.name} loading="lazy" />
+                  : <div class="photo-ph" aria-hidden="true"><span>{m.name.charAt(0)}</span></div>}
+                <span class="role-pill">{g.role}</span>
+              </div>
+              <div class="crew-body">
+                <h3>{m.name}</h3>
+                {m.blurb && <p class="crew-tagline">{m.blurb}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div class="crew-empty">
+          <p>We're adding {g.plural.toLowerCase()} to the crew. Check back soon.</p>
+        </div>
+      )}
+    </section>
+  ))}
+
+  <!-- CTA -->
+  <section class="cta-band">
+    <div class="wrap">
+      <p class="cta-kicker">YOUR DAY, OUR CREW</p>
+      <h2>Ready to get on the water aboard <em>Quarters</em>?</h2>
+      <a class="btn btn-gold" href="/book">Check dates &amp; book →</a>
+    </div>
+  </section>
+
+</Base>
+
+<style>
+  /* HERO */
+  .crew-hero { padding-top: 56px; }
+  .kicker { text-transform: uppercase; letter-spacing: .18em; font-weight: 700; font-size: 13px; color: var(--blue); margin: 0 0 12px; }
+  .crew-hero h1 { font-size: clamp(40px, 7vw, 76px); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 14px; }
+  .scr { font-family: var(--script); color: var(--magenta); font-weight: 400; }
+  .lede { font-size: 19px; max-width: 620px; margin: 0; }
+
+  /* SECTION */
+  .crew-sec { margin-top: 52px; }
+  .sec-top { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 22px; padding-bottom: 12px; border-bottom: 2px solid var(--ink); }
+  .sec-head { font-size: clamp(26px, 4.5vw, 40px); font-weight: 800; margin: 0; }
+  .sec-blurb { color: #8a8470; font-size: 15px; margin: 0; }
+
+  /* GRID + CARDS */
+  .crew-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 22px; }
+  .crew-card { display: flex; flex-direction: column; background: #fff; border: 2px solid var(--ink);
+               border-radius: 18px; overflow: hidden; box-shadow: 4px 4px 0 var(--ink);
+               text-decoration: none; color: var(--ink); transition: transform .08s ease, box-shadow .08s ease; }
+  a.crew-card:hover { transform: translate(-2px, -2px); box-shadow: 7px 7px 0 var(--blue); }
+
+  .crew-photo { position: relative; aspect-ratio: 4/5; overflow: hidden; border-bottom: 2px solid var(--ink); }
+  .crew-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .photo-ph { position: absolute; inset: 0; display: grid; place-items: center; background: var(--blue); }
+  .photo-ph span { font-family: var(--display); font-weight: 800; font-size: 64px; color: var(--cream); }
+  .role-pill { position: absolute; top: 10px; left: 10px; background: var(--gold); border: 2px solid var(--ink);
+               border-radius: 999px; font-family: var(--display); font-weight: 700; font-size: 11px;
+               letter-spacing: .06em; padding: 3px 10px; }
+
+  .crew-body { padding: 16px 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+  .crew-body h3 { font-family: var(--display); font-weight: 800; font-size: 22px; margin: 0; }
+  .crew-tagline { color: #6f6a58; font-size: 14px; line-height: 1.45; margin: 0; }
+  .crew-link { margin-top: 6px; color: var(--blue); font-weight: 700; font-size: 14px; }
+
+  /* EMPTY ROLE PLACEHOLDER */
+  .crew-empty { border: 2px dashed #c9c4ad; border-radius: 18px; padding: 28px; text-align: center; color: #8a8470; }
+  .crew-empty p { margin: 0; font-size: 15px; }
+
+  /* CTA BAND */
+  .cta-band { background: var(--blue); color: var(--cream); padding: 60px 0; margin-top: 72px; text-align: center; }
+  .cta-kicker { text-transform: uppercase; letter-spacing: .18em; font-size: 12px; font-weight: 700; color: var(--pink); margin: 0 0 12px; }
+  .cta-band h2 { font-size: clamp(26px, 4vw, 42px); color: var(--cream); margin: 0 auto 28px; max-width: 620px; }
+  .cta-band em { color: var(--gold); }
+  .btn-gold { background: var(--gold); color: var(--ink); border-color: var(--ink); }
+
+  @media (max-width: 560px) {
+    .crew-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .crew-body { padding: 12px 12px 14px; }
+    .crew-body h3 { font-size: 18px; }
+  }
+  @media (max-width: 380px) {
+    .crew-grid { grid-template-columns: 1fr; }
+  }
+</style>
