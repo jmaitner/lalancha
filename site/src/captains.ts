@@ -4,7 +4,7 @@
 // STATUS:
 //   - credentials .... REAL (from Luis, June 2026)
 //   - photos ......... REAL (converted from /Captain images/, June 2026)
-//   - bios ........... PLACEHOLDER — replace with each captain's real bio
+//   - bios ........... REAL
 //
 // `credentials` is a flat list of licenses + certifications shown as badges,
 // in the order listed. `extraStats` is optional key/value rows (years on the
@@ -39,8 +39,7 @@ export const captains: Captain[] = [
     name: 'Charlie',
     handle: 'Captain Charlie',
     tagline: 'The captain who makes the whole day feel easy.',
-    // PLACEHOLDER bio — replace with Charlie's real bio.
-    bio: 'Placeholder copy. Charlie is the captain you want when you want the day to just flow. Easygoing, quick with a story, and dialed into where the good light and calm water are on any given afternoon. He treats every charter like he is showing friends his favorite stretch of the lake.',
+    bio: "Charlie is the racer of the crew, which might lead you to expect fast and loose. He's the opposite: a rules guy who knows exactly how a boat works and exactly how to keep you safe. He's also in high demand, so he isn't always free. On the big race weekends, the Chicago to Mackinac, the Queen's Cup, the Clipper Cup, don't even bother calling, he won't answer. Catch him on an off week, though, and he might pick up on the first ring, half convinced you're a client from his day job.",
     photos: [
       'charlie-5',                              // selfie, clear face -> lead + crew card
       { src: 'charlie-2', pos: 'left center' }, // pilot/Cessna, Charlie is on the left
@@ -62,8 +61,7 @@ export const captains: Captain[] = [
     name: 'Connor Bernhard',
     handle: 'Captain Connor',
     tagline: 'Knows the lakefront cold, from quiet Burnham to a packed Playpen.',
-    // PLACEHOLDER bio — replace with Connor's real bio.
-    bio: 'Placeholder copy. Connor has spent years on Lake Michigan and knows the lakefront cold, from the calmest corners of Burnham to the busiest afternoon at the Playpen. He runs a relaxed, safety-first deck and has a knack for putting first-timers at ease. Ask him for the best golden-hour spot and he is already steering toward it.',
+    bio: "Connor is a rockstar who moonlights as a boat captain. A multitalented musician at home across genres and instruments, he brings that same range to the water. He's a natural teacher with a steady hand: ask him to show you something and he'll gladly walk you through it, because he wants everyone around him to succeed. No docking situation or unfamiliar boat seems to rattle him. When he isn't out with us, he's whipping around the city on the tour boats.",
     photos: ['connor-1', 'connor-2', 'connor-3', 'connor-4', 'connor-5', 'connor-6'],
     credentials: [
       'Master 100 Great Lakes',
@@ -77,7 +75,7 @@ export const captains: Captain[] = [
     slug: 'joseph',
     name: 'Joseph',
     handle: 'Captain Joseph',
-    tagline: 'Steady hands, quiet water, perfect timing.',
+    tagline: 'Freighters, Tankers, and Quarters',
     bio: "Captain Joseph Crulcich is a USCG-licensed mariner with 15+ years of experience spanning commercial shipping, yacht deliveries, and luxury charters. A Chicago native who grew up boating on Lake Michigan, he started at Shoreline Sightseeing before spending nine years with Military Sealift Command, rising to Second Mate. He's sailed all seven seas, visited 55+ countries, and transited the Panama, Suez, and Kiel Canals. He currently serves as Third Mate with Grand River Navigation on the Great Lakes, holds a 500-Ton Master License and TOAR, and is pursuing his 1,600-Ton Master License. Since 2015 he's also worked as a yacht and charter captain, and since 2022 as a delivery captain with Spring Brook Marine. Guests know him for pairing top-tier seamanship with an easygoing, hospitality-first approach making every trip safe, professional, and genuinely fun.",
     photos: [
       'joseph-1',
@@ -101,9 +99,8 @@ export const captains: Captain[] = [
     slug: 'luis',
     name: 'Luis Vecchio',
     handle: 'Captain Luis',
-    tagline: 'The owner, the operator, and the guy who started it all.',
-    // PLACEHOLDER bio — replace with Luis's real bio.
-    bio: 'Placeholder copy. Luis is the owner and operator of lancha boat and the captain who started it all. He built Quarters into a private charter you can actually relax on, and he still loves nothing more than a full boat and a flat lake. He runs every trip with care, good humor, and an eye for the perfect spot.',
+    tagline: 'Founder, lifelong boater, future marina owner.',
+    bio: "Luis has been on the water since he was a kid: little sailboats and speedboats, then driving at wakeboard clinics, which turned into pro/am tournaments, which turned into racing big boats out of Muskegon and sailing even bigger ones across oceans. He holds a 100-Ton Great Lakes Master and can run a six-pack charter for groups of six or fewer. He's done a little of everything out there, from the tour boats to windsurfing, and he used to be able to do a backflip on a wakeboard, technically it was a \"tantrum\", but either way, those days are behind him. His dream has been the same since he was young, and it's a simple one: own a marina. He's not there yet, so for now he's working on convincing the banks he knows enough about boats and real estate to pull it off. He's also got a day job. It's very boring, he won't talk about it, but it comes with insurance, so.",
     photos: [
       'luis-1', 'luis-2', 'luis-3',
       { src: 'luis-4', offset: '-16px' }, // nudge up slightly
