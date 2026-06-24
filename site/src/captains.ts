@@ -60,7 +60,7 @@ export const captains: Captain[] = [
     slug: 'connor',
     name: 'Connor Bernhard',
     handle: 'Captain Connor',
-    tagline: 'Knows the lakefront cold, from quiet Burnham to a packed Playpen.',
+    tagline: 'Plays anything, docks anywhere.',
     bio: "Connor is a rockstar who moonlights as a boat captain. A multitalented musician at home across genres and instruments, he brings that same range to the water. He's a natural teacher with a steady hand: ask him to show you something and he'll gladly walk you through it, because he wants everyone around him to succeed. No docking situation or unfamiliar boat seems to rattle him. When he isn't out with us, he's whipping around the city on the tour boats.",
     photos: ['connor-1', 'connor-2', 'connor-3', 'connor-4', 'connor-5', 'connor-6'],
     credentials: [
@@ -97,9 +97,9 @@ export const captains: Captain[] = [
   },
   {
     slug: 'luis',
-    name: 'Luis Vecchio',
+    name: 'Luis G. Vecchio',
     handle: 'Captain Luis',
-    tagline: 'Founder, lifelong boater, future marina owner.',
+    tagline: 'Heard you want to do boat stuff?',
     bio: "Luis has been on the water since he was a kid: little sailboats and speedboats, then driving at wakeboard clinics, which turned into pro/am tournaments, which turned into racing big boats out of Muskegon and sailing even bigger ones across oceans. He holds a 100-Ton Great Lakes Master and can run a six-pack charter for groups of six or fewer. He's done a little of everything out there, from the tour boats to windsurfing, and he used to be able to do a backflip on a wakeboard, technically it was a \"tantrum\", but either way, those days are behind him. His dream has been the same since he was young, and it's a simple one: own a marina. He's not there yet, so for now he's working on convincing the banks he knows enough about boats and real estate to pull it off. He's also got a day job. It's very boring, he won't talk about it, but it comes with insurance, so.",
     photos: [
       'luis-1', 'luis-2', 'luis-3',

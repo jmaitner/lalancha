@@ -13,7 +13,7 @@ const description =
   <section class="wrap crew-hero">
     <p class="kicker">ABOARD QUARTERS</p>
     <h1>Meet the <span class="scr">crew</span></h1>
-    <p class="lede">The people who make your day on the water easy: licensed captains at the helm,
+    <p class="lede">The people who make your day on the water easy: licensed captains who keep you safe,
       plus the deck hands and dock attendants who keep everything running.</p>
   </section>
 
@@ -48,20 +48,27 @@ const description =
         {g.blurb && <p class="sec-blurb">{g.blurb}</p>}
       </div>
       {g.members.length > 0 ? (
-        <div class="crew-grid">
+        <div class="member-list">
           {g.members.map((m) => (
-            <div class="crew-card static">
-              <div class="crew-photo">
+            <article class="member-card">
+              <div class="member-photo">
                 {m.photo
                   ? <img src={`/images/${m.photo}.jpg`} alt={m.name} loading="lazy" />
                   : <div class="photo-ph" aria-hidden="true"><span>{m.name.charAt(0)}</span></div>}
                 <span class="role-pill">{g.role}</span>
               </div>
-              <div class="crew-body">
+              <div class="member-info">
                 <h3>{m.name}</h3>
-                {m.blurb && <p class="crew-tagline">{m.blurb}</p>}
+                {m.bio
+                  ? <p class="member-bio">{m.bio}</p>
+                  : (m.blurb && <p class="member-bio">{m.blurb}</p>)}
+                {m.stats && m.stats.length > 0 && (
+                  <ul class="member-stats">
+                    {m.stats.map((s) => <li class="member-stat">{s}</li>)}
+                  </ul>
+                )}
               </div>
-            </div>
+            </article>
           ))}
         </div>
       ) : (
@@ -120,6 +127,25 @@ const description =
   /* EMPTY ROLE PLACEHOLDER */
   .crew-empty { border: 2px dashed #c9c4ad; border-radius: 18px; padding: 28px; text-align: center; color: #8a8470; }
   .crew-empty p { margin: 0; font-size: 15px; }
+
+  /* MEMBER PROFILE CARDS (dock attendants, deck hands) */
+  .member-list { display: flex; flex-direction: column; gap: 20px; }
+  .member-card { display: grid; grid-template-columns: minmax(150px, 210px) 1fr; max-width: 720px;
+                 background: #fff; border: 2px solid var(--ink); border-radius: 18px;
+                 overflow: hidden; box-shadow: 4px 4px 0 var(--ink); }
+  .member-photo { position: relative; min-height: 230px; border-right: 2px solid var(--ink); }
+  .member-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .member-info { padding: 20px 22px; }
+  .member-info h3 { font-family: var(--display); font-weight: 800; font-size: 24px; margin: 0 0 8px; }
+  .member-bio { font-size: 15px; line-height: 1.6; margin: 0 0 14px; }
+  .member-stats { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 7px; }
+  .member-stat { font-family: var(--display); font-weight: 700; font-size: 11px; letter-spacing: .01em;
+                 padding: 6px 11px; border: 2px solid var(--ink); border-radius: 999px; background: var(--cream); }
+
+  @media (max-width: 540px) {
+    .member-card { grid-template-columns: 1fr; }
+    .member-photo { aspect-ratio: 16/10; min-height: 0; border-right: 0; border-bottom: 2px solid var(--ink); }
+  }
 
   /* CTA BAND */
   .cta-band { background: var(--blue); color: var(--cream); padding: 60px 0; margin-top: 72px; text-align: center; }

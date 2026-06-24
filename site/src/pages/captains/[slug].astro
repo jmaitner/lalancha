@@ -90,7 +90,7 @@ const hasStats = hasCreds || hasExtra;
     <section class="wrap strip-sec">
       <div class="strip-grid">
         {stripPhotos.map((ph, i) => (
-          <figure class={`strip-item si-${i % 3}`} style={ph.offset ? `margin-top:${ph.offset}` : undefined}>
+          <figure class={`strip-item si-${i % 3}`} style={ph.offset ? `--ty:${ph.offset}` : undefined}>
             <img src={`/images/${ph.src}.jpg`} alt="Aboard Quarters" loading="lazy" style={ph.pos ? `object-position:${ph.pos}` : undefined} />
           </figure>
         ))}
@@ -196,7 +196,7 @@ const hasStats = hasCreds || hasExtra;
     transform: rotate(3deg);
     box-shadow: 7px 7px 0 var(--pink);
     z-index: 2;
-    margin-top: -130px;
+    margin-top: -64px;
     margin-left: auto;
   }
   /* Photo 3: smallest, lower-center, slight tilt, overlaps both */
@@ -206,7 +206,7 @@ const hasStats = hasCreds || hasExtra;
     transform: rotate(-1.5deg);
     box-shadow: 7px 7px 0 var(--gold);
     z-index: 1;
-    margin-top: -90px;
+    margin-top: -44px;
     margin-left: 14%;
   }
 
@@ -316,17 +316,21 @@ const hasStats = hasCreds || hasExtra;
     border: 3px solid var(--ink);
     border-radius: 20px;
     overflow: hidden;
+    /* tilt (--rot per item) + optional vertical scoot (--ty, set inline);
+       transform moves the photo without resizing its cell, so nothing clips */
+    transform: rotate(var(--rot, 0deg)) translateY(var(--ty, 0px));
   }
   .strip-item img {
     width: 100%;
     display: block;
     object-fit: cover;
+    object-position: center top;
     aspect-ratio: 4/3;
   }
   /* Alternating shadows + micro-tilts for visual interest */
-  .si-0 { box-shadow: 6px 6px 0 var(--magenta); transform: rotate(-1deg); }
-  .si-1 { box-shadow: 6px 6px 0 var(--blue);    transform: rotate(1.5deg); }
-  .si-2 { box-shadow: 6px 6px 0 var(--gold);    transform: rotate(-0.8deg); }
+  .si-0 { box-shadow: 6px 6px 0 var(--magenta); --rot: -1deg; }
+  .si-1 { box-shadow: 6px 6px 0 var(--blue);    --rot: 1.5deg; }
+  .si-2 { box-shadow: 6px 6px 0 var(--gold);    --rot: -0.8deg; }
 
   /* ── CTA BAND ──────────────────────────────────────── */
   .cta-band {
@@ -374,8 +378,8 @@ const hasStats = hasCreds || hasExtra;
       margin: 0 auto;
     }
     .sp1 { width: 88%; }
-    .sp2 { width: 78%; margin-top: -100px; }
-    .sp3 { width: 68%; margin-top: -70px; }
+    .sp2 { width: 78%; margin-top: -56px; }
+    .sp3 { width: 68%; margin-top: -38px; }
     .strip-grid { grid-template-columns: repeat(2, 1fr); }
   }
   @media (max-width: 500px) {
