@@ -373,7 +373,9 @@ const hasStats = hasCreds || hasExtra;
       gap: 40px;
     }
     .stack-col {
-      /* cap the stack height on mobile */
+      /* explicit width: margin auto alone makes it shrink-to-fit and the
+         percentage-width photos collapse to zero on mobile */
+      width: 100%;
       max-width: 480px;
       margin: 0 auto;
     }
