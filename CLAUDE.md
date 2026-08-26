@@ -21,15 +21,17 @@ Nothing is confirmed until Luis says yes. He gets every charter as an offer he a
 3. Luis taps **Accept** or **Decline** in that email (`doGet ?action=accept|decline&id=&t=`). The `t` is an HMAC token — `doGet` is public, so without it anyone could confirm or kill charters by guessing an ID. Backup path: the **Status** dropdown in the Bookings sheet (`onBookingsEdit`).
    - **Accept** → Drive folder, calendar event promoted + guest invited, guest confirmation email, and Luis gets an "invoice $X" reminder. **Luis invoices manually** (Stripe dashboard).
    - **Decline** → hold deleted (slot reopens), guest let down gently.
-4. Unanswered requests: `expireStaleRequests` (hourly) nudges Luis at `NUDGE_HOURS` (12) and releases the hold at `HOLD_HOURS` (48) so dead leads don't block the boat.
+4. **Holds never expire.** A website lead pays more than the other channels, so Luis holds the slot until he personally declines. `nudgeOpenRequests` (hourly) reminds him at `NUDGE_HOURS` (12) then every `NUDGE_REPEAT_HOURS` (24) until he answers — that reminder is the only thing stopping a forgotten request from blocking the boat forever.
 5. **Waivers are signed at the dock.** No pre-trip waiver emails. `recordWaiverSigned` upserts guests who weren't pre-entered, so the roster fills itself as people sign.
-6. `reconcileJotform` (every 10 min) still stamps **AgreementSigned** from the JotForm→Sheets integration. It no longer writes Status or Paid — Luis owns both now.
+6. **Charter agreement** is emailed automatically on acceptance and chased by `agreementReminders` (daily, capped at `AGREEMENT_NUDGE_MAX`). Both are silent until `LINK_AGREEMENT_NOPAY` is set, since the pay-bundled form must never reach a guest. `reconcileJotform` (every 10 min) stamps **AgreementSigned**, which stops the chase. It no longer writes Status or Paid — Luis owns both.
+   - **Stripe invoicing** is automatic when a restricted key is stored in Script Properties as `STRIPE_SECRET_KEY`. `createStripeInvoice_` finds-or-creates the customer, creates the invoice with `pending_invoice_items_behavior: exclude`, attaches the line to that invoice by id, and finalizes. `STRIPE_AUTO_SEND` decides whether it also emails the guest. **A Stripe failure never blocks a charter** — it degrades to "invoice by hand". No key at all = fully manual, which is what Luis uses if he bills through his bank to avoid card fees.
 7. Captain fills the **Captain Post-Charter Report** (Google Form) → `onCaptainFormSubmit` sets fuel (flat $50 per charter) → writes it to the booking + emails Luis what to invoice.
 8. Daily triggers: unpaid digest (9am, accepted charters with a blank Paid column), Google-review request to finished charters (10am).
 
 ## Key files
 - `apps-script/Code.gs` — the entire backend. CONFIG block at top holds all IDs/links/prices. `setupLaLanchaSystem()` bootstraps everything (idempotent). Offer flow, reconcile, calendar, reviews, fuel, forms all here.
-  - Offer flow: `createRequest` / `acceptRequest` / `declineRequest` / `expireStaleRequests`, `handleDecision_` + `token_` (signed links), `onBookingsEdit` (sheet backup), `migrateToOfferFlow()` (adds the new columns to a live sheet), `_testRequest()` (sends yourself a real offer email).
+  - Offer flow: `createRequest` / `acceptRequest` / `declineRequest` / `nudgeOpenRequests`, `handleDecision_` + `token_` (signed links), `onBookingsEdit` (sheet backup), `migrateToOfferFlow()` (adds the new columns to a live sheet), `_testRequest()` (sends yourself a real offer email).
+  - Money & paperwork: `createStripeInvoice_` / `stripe_` / `stripeGet_` / `setStripeKey`, `agreementReminders`, `unpaidDigest`.
 - `apps-script/README.md` — backend setup.
 - `site/src/config.ts` — endpoint URL, time blocks, default price.
 - `site/src/destinations.ts` — the "where we go" destination content.
@@ -39,7 +41,8 @@ Nothing is confirmed until Luis says yes. He gets every charter as an offer he a
 
 ## Common changes
 - **Change the standard price**: `DEFAULT_BLOCK_PRICE` in both `apps-script/Code.gs` CONFIG and `site/src/config.ts`. Premium per-date prices: the **Pricing** tab in the Operations sheet.
-- **Change how long a request holds the slot**: `HOLD_HOURS` / `NUDGE_HOURS` in CONFIG.
+- **Change reminder cadence**: `NUDGE_HOURS` / `NUDGE_REPEAT_HOURS` (Luis) and `AGREEMENT_NUDGE_HOURS` / `AGREEMENT_NUDGE_MAX` (guests) in CONFIG. Holds themselves are deliberately permanent.
+- **Turn on automatic Stripe invoices**: store a restricted key via `setStripeKey('rk_live_…')`, then clear the argument. `STRIPE_AUTO_SEND: true` also emails it to the guest.
 - **Edit the offer email Luis gets**: `sendOfferToLuis_`. The accepted-charter email: `sendAcceptedEmail_`.
 - **Change time blocks**: `TIME_BLOCKS` + `BLOCK_WINDOWS` in Code.gs CONFIG (and `BLOCKS` in site config.ts).
 - **Brand colors/fonts**: `:root` vars in `site/src/layouts/Base.astro`.

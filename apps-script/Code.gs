@@ -55,15 +55,27 @@ const CONFIG = {
 
   // --- Offer flow (Luis approves every charter before it is confirmed) ---
   // A request pencils the slot in on the calendar so nobody else can take it while
-  // Luis decides. If he never answers, the hold releases itself.
-  HOLD_HOURS:  48,   // pending request auto-expires (slot reopens) after this long
-  NUDGE_HOURS: 12,   // remind Luis about a still-unanswered request after this long
+  // Luis decides. Holds DO NOT expire: website leads pay more than the other
+  // channels, so Luis holds them until he personally declines. Instead we keep
+  // reminding him, so a request cannot rot silently while the slot stays blocked.
+  NUDGE_HOURS:        12,   // first reminder about an unanswered request
+  NUDGE_REPEAT_HOURS: 24,   // and again this often until he answers
+  // Charter agreement chase: guests who have not signed after an accepted charter.
+  AGREEMENT_NUDGE_HOURS: 48,   // first reminder this long after acceptance
+  AGREEMENT_NUDGE_MAX:    3,   // never send more than this many, ever
   // Charter Agreement WITHOUT the Stripe payment widget. Luis invoices separately now,
   // so the pay-bundled form (LINK_AGREEMENT) must NOT go to guests. Until this clone
   // exists, the accepted-charter email simply omits the agreement link.
   LINK_AGREEMENT_NOPAY:     '',   // e.g. 'https://form.jotform.com/XXXXXXXXXXXXX'
   AGREEMENT_NOPAY_SHEET_ID: '',   // its Google Sheet (reconcile reads this if set)
   STRIPE_INVOICE_URL: 'https://dashboard.stripe.com/invoices/create',
+  // Automatic Stripe invoicing. OFF until a restricted API key is stored in
+  // Script Properties as STRIPE_SECRET_KEY (Project Settings > Script Properties).
+  // Without it, accepting just tells Luis to invoice by hand, which is what he
+  // does if he would rather take payment through his bank and skip card fees.
+  STRIPE_AUTO_SEND:      false,  // true = finalize AND email the invoice to the guest
+                                 // false = leave a finalized invoice ready for Luis to send
+  STRIPE_DAYS_UNTIL_DUE: 7,
 
   // Existing Drive folder to build everything INSIDE (the shared La Lancha root).
   // Leave '' to instead create a new "La Lancha" folder in My Drive.
@@ -410,12 +422,20 @@ function acceptRequest(bookingId) {
     });
   }
 
-  updateBooking_(bookingId, { Status: 'Accepted', RespondedAt: now_(), FolderURL: folder.getUrl() });
+  // Draft the Stripe invoice if a key is configured. Never fatal: a Stripe
+  // outage must not stop a charter being confirmed, it just means Luis bills by hand.
+  const invoice = createStripeInvoice_(b);
 
-  sendAcceptedEmail_(b, bookingId);
-  sendAcceptedReceiptToLuis_(b, bookingId, folder.getUrl());
+  updateBooking_(bookingId, {
+    Status: 'Accepted', RespondedAt: now_(), FolderURL: folder.getUrl(),
+    StripeRef: invoice.ok ? invoice.id : '',
+    InvoiceSent: invoice.ok ? (invoice.sent ? 'sent ' + now_() : 'drafted ' + now_()) : ''
+  });
 
-  return { ok: true, booking: b, folderUrl: folder.getUrl() };
+  sendAcceptedEmail_(b, bookingId, invoice);
+  sendAcceptedReceiptToLuis_(b, bookingId, folder.getUrl(), invoice);
+
+  return { ok: true, booking: b, folderUrl: folder.getUrl(), invoice: invoice };
 }
 
 /** Luis passed. Releases the slot and emails the guest. */
@@ -435,12 +455,15 @@ function declineRequest(bookingId, reason) {
 }
 
 /**
- * Hourly. Nudges Luis about requests he hasn't answered, and releases the hold
- * on ones that have gone stale so the boat doesn't sit blocked by a dead lead.
+ * Hourly. Reminds Luis about requests he has not answered.
+ *
+ * Holds never expire on their own: a website lead is worth more than the other
+ * channels, so the slot stays blocked until Luis personally declines it. The
+ * cost of that choice is that a forgotten request would quietly hold the boat
+ * forever, so this keeps pinging him until he acts. It is the only backstop.
  */
-function expireStaleRequests() {
-  const sh = openSS_().getSheetByName('Bookings');
-  const rows = sh.getDataRange().getValues();
+function nudgeOpenRequests() {
+  const rows = openSS_().getSheetByName('Bookings').getDataRange().getValues();
   const H = HEADERS.Bookings;
   const nowMs = new Date().getTime();
   var nudges = [];
@@ -449,32 +472,79 @@ function expireStaleRequests() {
     if (String(rows[r][H.indexOf('Status')]) !== 'Requested') continue;
     var b = rowToBooking_(rows[r], H);
     var ageH = (nowMs - parseStamp_(rows[r][H.indexOf('Created')])) / 3600000;
-    if (!isFinite(ageH)) continue;
+    if (!isFinite(ageH) || ageH < CONFIG.NUDGE_HOURS) continue;
 
-    if (ageH >= CONFIG.HOLD_HOURS) {
-      releaseHold_(b);
-      sh.getRange(r + 1, H.indexOf('Status') + 1).setValue('Expired');
-      sh.getRange(r + 1, H.indexOf('RespondedAt') + 1).setValue(now_());
-      PROPS.deleteProperty('NUDGED_' + b.BookingID);
-      sendExpiredEmail_(b);
-    } else if (ageH >= CONFIG.NUDGE_HOURS && !PROPS.getProperty('NUDGED_' + b.BookingID)) {
-      // Nudge-once flag lives in Script Properties, not the sheet, so Luis
-      // writing his own note on a request does not suppress the reminder.
-      nudges.push(b);
-      PROPS.setProperty('NUDGED_' + b.BookingID, now_());
-    }
+    // Reminder state lives in Script Properties, not the sheet, so Luis writing
+    // his own note on a request does not suppress it.
+    var key = 'NUDGED_' + b.BookingID;
+    var lastMs = parseStamp_(PROPS.getProperty(key));
+    if (isFinite(lastMs) && (nowMs - lastMs) / 3600000 < CONFIG.NUDGE_REPEAT_HOURS) continue;
+
+    b._ageDays = Math.floor(ageH / 24);
+    nudges.push(b);
+    PROPS.setProperty(key, now_());
+  }
+  if (!nudges.length) return;
+
+  var body = 'Still waiting on you. These slots stay held until you answer, so nobody '
+    + 'else can take that time.\n\n'
+    + nudges.map(function (b) {
+        return b.CharterDate + ' \u00b7 ' + b.TimeBlock + ' \u00b7 ' + b.PrimaryName
+             + ' \u00b7 $' + b.AmountPaid
+             + (b._ageDays >= 1 ? '   (asked ' + b._ageDays + ' day' + (b._ageDays > 1 ? 's' : '') + ' ago)' : '')
+             + '\n  Accept:  ' + actionUrl_('accept', b.BookingID)
+             + '\n  Decline: ' + actionUrl_('decline', b.BookingID);
+      }).join('\n\n');
+  GmailApp.sendEmail(CONFIG.OWNER_EMAIL,
+    '\u23f3 ' + nudges.length + ' charter request(s) waiting on you', body);
+}
+
+/**
+ * Daily. Chases guests who have an accepted charter but have not signed the
+ * agreement yet. Capped, and it stops as soon as reconcileAgreement_ stamps
+ * AgreementSigned. Silent unless CONFIG.LINK_AGREEMENT_NOPAY is configured,
+ * because that is the only link we are willing to send a guest.
+ */
+function agreementReminders() {
+  if (!CONFIG.LINK_AGREEMENT_NOPAY) return;
+  const rows = openSS_().getSheetByName('Bookings').getDataRange().getValues();
+  const H = HEADERS.Bookings;
+  const nowMs = new Date().getTime();
+  var outstanding = [];
+
+  for (var r = 1; r < rows.length; r++) {
+    if (String(rows[r][H.indexOf('Status')]) !== 'Accepted') continue;
+    if (rows[r][H.indexOf('AgreementSigned')]) continue;
+    var b = rowToBooking_(rows[r], H);
+    if (!b.PrimaryEmail) continue;
+
+    var win = blockWindowFromLabel_(rows[r][H.indexOf('CharterDate')], rows[r][H.indexOf('TimeBlock')]);
+    if (win && win.end < new Date()) continue;                 // already sailed
+    var sinceAccept = (nowMs - parseStamp_(rows[r][H.indexOf('RespondedAt')])) / 3600000;
+    if (!isFinite(sinceAccept) || sinceAccept < CONFIG.AGREEMENT_NUDGE_HOURS) continue;
+
+    outstanding.push(b);
+    var key = 'AGR_NUDGE_' + b.BookingID;
+    var sent = Number(PROPS.getProperty(key) || 0);
+    if (sent >= CONFIG.AGREEMENT_NUDGE_MAX) continue;
+    var lastMs = parseStamp_(PROPS.getProperty(key + '_AT'));
+    if (isFinite(lastMs) && (nowMs - lastMs) / 3600000 < 48) continue;
+
+    var daysOut = win ? Math.ceil((win.start - nowMs) / 86400000) : null;
+    sendAgreementReminder_(b, daysOut);
+    PROPS.setProperty(key, String(sent + 1));
+    PROPS.setProperty(key + '_AT', now_());
   }
 
-  if (nudges.length) {
-    var body = 'These charter requests are still waiting on you. They release themselves '
-      + CONFIG.HOLD_HOURS + 'h after they came in.\n\n'
-      + nudges.map(function (b) {
-          return b.CharterDate + ' \u00b7 ' + b.TimeBlock + ' \u00b7 ' + b.PrimaryName
-               + ' \u00b7 $' + b.AmountPaid + '\n  Accept:  ' + actionUrl_('accept', b.BookingID)
-               + '\n  Decline: ' + actionUrl_('decline', b.BookingID);
-        }).join('\n\n');
+  if (outstanding.length) {
     GmailApp.sendEmail(CONFIG.OWNER_EMAIL,
-      '\u23f3 ' + nudges.length + ' charter request(s) waiting on you', body);
+      '\u270d\ufe0f Agreement not signed yet (' + outstanding.length + ')',
+      'Accepted charters still missing a signed agreement. They have been reminded ' +
+      'automatically (up to ' + CONFIG.AGREEMENT_NUDGE_MAX + ' times):\n\n' +
+      outstanding.map(function (b) {
+        return '  ' + b.CharterDate + ' \u00b7 ' + b.TimeBlock + ' \u00b7 ' + b.PrimaryName +
+               ' \u00b7 ' + b.PrimaryEmail + '  (' + b.BookingID + ')';
+      }).join('\n'));
   }
 }
 
@@ -773,7 +843,7 @@ function installTriggers_() {
   ScriptApp.newTrigger('onCaptainFormSubmit').forForm(captainForm).onFormSubmit().create();
 
   // Offer flow: nudge Luis on stale requests, release dead holds. Hourly.
-  ScriptApp.newTrigger('expireStaleRequests').timeBased().everyHours(1).create();
+  ScriptApp.newTrigger('nudgeOpenRequests').timeBased().everyHours(1).create();
 
   // Backup path for accept/decline: change Status in the Bookings sheet.
   ScriptApp.newTrigger('onBookingsEdit')
@@ -782,6 +852,9 @@ function installTriggers_() {
   // Daily "accepted but not marked paid" digest at 9am.
   // (Waiver reminders are gone: guests sign at the dock now.)
   ScriptApp.newTrigger('unpaidDigest').timeBased().atHour(9).everyDays(1).create();
+
+  // Daily agreement chase at 11am (no-op until LINK_AGREEMENT_NOPAY is set)
+  ScriptApp.newTrigger('agreementReminders').timeBased().atHour(11).everyDays(1).create();
 
   // Daily post-charter review request at 10am
   ScriptApp.newTrigger('requestReviews').timeBased().atHour(10).everyDays(1).create();
@@ -953,8 +1026,8 @@ function sendOfferToLuis_(data, bookingId) {
     '<p style="color:#5f6b53;font-size:13px">Accepting confirms them, puts it on the calendar and sends ' +
       'their details. You invoice the $' + esc_(data.amountPaid || CONFIG.DEFAULT_BLOCK_PRICE) +
       ' yourself. Waivers get signed at the dock.</p>' +
-    '<p style="color:#5f6b53;font-size:13px">The slot is held for you until then, and releases itself after ' +
-      CONFIG.HOLD_HOURS + ' hours. Want to negotiate instead? Just hit reply, it goes straight to them.</p>' +
+    '<p style="color:#5f6b53;font-size:13px">The slot stays held until you answer, so nobody else can ' +
+      'take that time. Want to negotiate instead? Just hit reply, it goes straight to them.</p>' +
     '<p style="color:#999;font-size:12px">Booking ' + bookingId + '</p>');
 
   sendHtml_(CONFIG.OWNER_EMAIL,
@@ -977,8 +1050,8 @@ function sendRequestAck_(data, bookingId) {
         (data.partySize ? ' &middot; party of ' + esc_(data.partySize) : '') + '</strong><br>' +
         '<span style="color:#5f6b53">$' + esc_(data.amountPaid || CONFIG.DEFAULT_BLOCK_PRICE) +
         ' for the boat. Captain and fuel are billed separately.</span></p>' +
-      '<p>You will hear back within a day, usually much sooner. Nothing is charged yet, and there is ' +
-        'nothing for you to do until Luis confirms.</p>' +
+      '<p>Luis answers the same day. Nothing is charged yet, and there is nothing for you ' +
+        'to do until he confirms.</p>' +
       '<p>Just reply to this email if anything changes.</p>' +
       '<p>&mdash; ' + CONFIG.BUSINESS_NAME + '<br>' +
         '<span style="color:#888;font-size:12px">Request ' + bookingId + '</span></p>'),
@@ -989,7 +1062,7 @@ function sendRequestAck_(data, bookingId) {
  * Luis said yes. Luis's onboarding email (bareboat/demise model), rebuilt for the
  * offer flow: no payment link (he invoices), no waiver chase (they sign at the dock).
  */
-function sendAcceptedEmail_(b, bookingId) {
+function sendAcceptedEmail_(b, bookingId, invoice) {
   if (!b.PrimaryEmail) return;
   var needsCaptain = String(b.CaptainStatus).toLowerCase() === 'need';
   var firstName = String(b.PrimaryName || '').split(' ')[0] || 'there';
@@ -1023,8 +1096,11 @@ function sendAcceptedEmail_(b, bookingId) {
       '<p>Fuel works the same way: you can top off on the way back in, or we invoice a <strong>flat $' +
         CONFIG.FUEL_FLAT_RATE + '</strong> after the trip, wherever you go. Most guests prefer to have us ' +
         'invoice it, for simplicity and to keep that extra time on the water.</p>' +
-      '<p><strong>Payment:</strong> Luis will send you an invoice for the <strong>$' + esc_(amount) +
-        '</strong> charter. Nothing to do right now.</p>' +
+      ((invoice && invoice.ok && invoice.sent)
+        ? '<p><strong>Payment:</strong> your invoice for the <strong>$' + esc_(amount) +
+          '</strong> charter is in your inbox. <a href="' + invoice.url + '">You can also pay it here</a>.</p>'
+        : '<p><strong>Payment:</strong> Luis will send you an invoice for the <strong>$' + esc_(amount) +
+          '</strong> charter. Nothing to do right now.</p>') +
       agreementBlock +
       '<p><strong>Waivers:</strong> every guest signs one, and we handle it right at the dock before you board. ' +
         'Please arrive about 15 minutes early so it is quick.</p>' +
@@ -1039,15 +1115,27 @@ function sendAcceptedEmail_(b, bookingId) {
 }
 
 /** What Luis gets right after accepting, so the invoice job is sitting in his inbox. */
-function sendAcceptedReceiptToLuis_(b, bookingId, folderUrl) {
+function sendAcceptedReceiptToLuis_(b, bookingId, folderUrl, invoice) {
   var waiverUrl = CONFIG.LINK_WAIVER + '?bookingId=' + encodeURIComponent(bookingId);
+  var money =
+    (invoice && invoice.ok && invoice.sent)
+      ? '<strong>1. Invoice sent \u2713</strong><br>$' + esc_(b.AmountPaid || '') + ' to ' +
+        esc_(b.PrimaryEmail || '') + '<br><a href="' + invoice.url + '">View it in Stripe &rarr;</a>'
+    : (invoice && invoice.ok)
+      ? '<strong>1. Invoice drafted, ready to send</strong><br>$' + esc_(b.AmountPaid || '') + ' to ' +
+        esc_(b.PrimaryEmail || '') + '<br><a href="' + invoice.url + '">Review and send it &rarr;</a>'
+      : '<strong>1. Invoice $' + esc_(b.AmountPaid || '') + '</strong><br>' + esc_(b.PrimaryEmail || '') +
+        '<br><a href="' + CONFIG.STRIPE_INVOICE_URL + '">Create it in Stripe &rarr;</a>' +
+        ((invoice && invoice.error)
+          ? '<br><span style="color:#b3261e;font-size:13px">Auto-invoice failed, do it by hand: ' +
+            esc_(invoice.error) + '</span>' : '');
   sendHtml_(CONFIG.OWNER_EMAIL,
-    '\u2705 Accepted \u00b7 ' + b.CharterDate + ' \u00b7 ' + b.PrimaryName + ' \u00b7 invoice $' + b.AmountPaid,
+    '\u2705 Accepted \u00b7 ' + b.CharterDate + ' \u00b7 ' + b.PrimaryName + ' \u00b7 ' +
+      ((invoice && invoice.ok && invoice.sent) ? 'invoice sent $' : 'invoice $') + b.AmountPaid,
     shell_(
       '<h2 style="margin:0 0 14px;font-size:20px">Confirmed. Two things left.</h2>' +
       '<p class="box" style="background:#fff;border:1px solid #e5e0d4;border-radius:12px;padding:14px">' +
-        '<strong>1. Invoice $' + esc_(b.AmountPaid || '') + '</strong><br>' + esc_(b.PrimaryEmail || '') +
-        '<br><a href="' + CONFIG.STRIPE_INVOICE_URL + '">Create it in Stripe &rarr;</a><br>' +
+        money + '<br>' +
         '<span style="color:#5f6b53;font-size:13px">Mark the Paid column in the Bookings sheet once it clears.</span></p>' +
       '<p class="box" style="background:#fff;border:1px solid #e5e0d4;border-radius:12px;padding:14px">' +
         '<strong>2. Waivers at the dock</strong><br>' +
@@ -1062,6 +1150,28 @@ function sendAcceptedReceiptToLuis_(b, bookingId, folderUrl) {
     b.PrimaryEmail || '');
 }
 
+/** Nudge a guest who has not signed the charter agreement yet. */
+function sendAgreementReminder_(b, daysOut) {
+  var url = CONFIG.LINK_AGREEMENT_NOPAY + '?bookingId=' + encodeURIComponent(b.BookingID) +
+    '&name=' + encodeURIComponent(b.PrimaryName || '') +
+    '&email=' + encodeURIComponent(b.PrimaryEmail || '');
+  var soon = (daysOut !== null && daysOut <= 3);
+  sendHtml_(b.PrimaryEmail,
+    (soon ? 'Before ' + (daysOut <= 1 ? 'tomorrow' : 'your trip') + ': ' : '') +
+      'one signature left for your charter (' + b.BookingID + ')',
+    shell_(
+      '<p>Hi ' + esc_(String(b.PrimaryName || '').split(' ')[0] || 'there') + ',</p>' +
+      '<p>Quick one. Your charter on <strong>' + esc_(b.CharterDate) + ' &middot; ' +
+        esc_(b.TimeBlock) + '</strong> is confirmed, we just need the charter agreement signed.</p>' +
+      '<p><a href="' + url + '" style="display:inline-block;padding:13px 28px;background:#c2185b;' +
+        'color:#fff;text-decoration:none;border-radius:999px;font-weight:bold">Sign the agreement</a></p>' +
+      '<p>It takes about a minute and there is no payment on it. ' +
+        (soon ? 'We do need it before you board.' : '') + '</p>' +
+      '<p>Already signed it? Ignore this, it crossed in the post.</p>' +
+      '<p>&mdash; ' + CONFIG.BUSINESS_NAME + '</p>'),
+    CONFIG.OWNER_EMAIL);
+}
+
 /** Luis passed. Keep the door open. */
 function sendDeclinedEmail_(b, bookingId) {
   if (!b.PrimaryEmail) return;
@@ -1074,21 +1184,6 @@ function sendDeclinedEmail_(b, bookingId) {
       '<p>Other dates are likely wide open, so it is worth another look: ' +
         '<a href="https://la-lancha.com/book">check availability</a>. Or just reply here and Luis will ' +
         'find you something that works.</p>' +
-      '<p>&mdash; ' + CONFIG.BUSINESS_NAME + '</p>'),
-    CONFIG.OWNER_EMAIL);
-}
-
-/** Hold ran out before Luis answered. Same tone, different reason. */
-function sendExpiredEmail_(b) {
-  if (!b.PrimaryEmail) return;
-  sendHtml_(b.PrimaryEmail,
-    'Your ' + CONFIG.BOAT_NAME + ' request (' + b.BookingID + ')',
-    shell_(
-      '<p>Hi ' + esc_(String(b.PrimaryName || '').split(' ')[0] || 'there') + ',</p>' +
-      '<p>We were not able to lock in ' + esc_(b.CharterDate) + ' &middot; ' + esc_(b.TimeBlock) +
-        ' in time, so we have released the hold. Nothing has been charged.</p>' +
-      '<p>Reply to this email and Luis will sort it out personally, or ' +
-        '<a href="https://la-lancha.com/book">pick another date</a>.</p>' +
       '<p>&mdash; ' + CONFIG.BUSINESS_NAME + '</p>'),
     CONFIG.OWNER_EMAIL);
 }
@@ -1167,8 +1262,14 @@ function createCalendarEvent_(data, bookingId, folderUrl, pending) {
   return ev.getId();
 }
 
+/**
+ * Calendar title. Price goes near the front because Google truncates titles in
+ * month view, and the price is what Luis wants to see at a glance. The calendar
+ * is Quarters-only, so the boat name earns no space here.
+ */
 function eventTitle_(data, bookingId, pending) {
-  return (pending ? '\u23f3 REQUEST \u2014 ' : '') + CONFIG.BOAT_NAME + ' Charter \u2014 ' +
+  var price = data.amountPaid || data.AmountPaid || '';
+  return (pending ? '\u23f3 REQUEST \u00b7 ' : '') + (price ? '$' + price + ' \u00b7 ' : '') +
          (data.primaryName || data.PrimaryName || 'Guest') + ' (' + bookingId + ')';
 }
 function eventDesc_(data, bookingId, folderUrl, pending) {
@@ -1367,6 +1468,100 @@ function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
+// ====================== STRIPE INVOICING ==================================
+/**
+ * Draft (and optionally send) a Stripe invoice for an accepted charter.
+ *
+ * OFF unless a restricted API key is stored in Script Properties as
+ * STRIPE_SECRET_KEY. No key means Luis invoices by hand, which is also what he
+ * wants if he would rather take payment through his bank and avoid card fees.
+ *
+ * The key needs write access to Customers, Invoices and Invoice Items, nothing
+ * more. Create it at Stripe > Developers > API keys > restricted key.
+ *
+ * Returns { ok, url, id } or { ok:false, error, skipped }.
+ */
+function createStripeInvoice_(b) {
+  var key = PROPS.getProperty('STRIPE_SECRET_KEY');
+  if (!key) return { ok: false, skipped: 'no_key' };
+  var amount = Number(b.AmountPaid);
+  if (!amount || !b.PrimaryEmail) return { ok: false, skipped: 'no_amount_or_email' };
+
+  try {
+    // Reuse the customer if this guest has chartered before, so repeat bookings
+    // do not litter Stripe with duplicate records under the same email.
+    var found = stripeGet_(key, 'customers?limit=1&email=' + encodeURIComponent(b.PrimaryEmail));
+    var customer = (found.data && found.data.length) ? found.data[0] : stripe_(key, 'customers', {
+      email: b.PrimaryEmail, name: b.PrimaryName || '',
+      'metadata[bookingId]': b.BookingID
+    });
+
+    // Create the invoice FIRST with pending items excluded, then attach this
+    // charter's line to it by id. Doing it the other way round lets a stray
+    // invoice item left over from a failed run get swept onto the next bill.
+    var invoice = stripe_(key, 'invoices', {
+      customer: customer.id,
+      collection_method: 'send_invoice',
+      days_until_due: CONFIG.STRIPE_DAYS_UNTIL_DUE,
+      auto_advance: 'false',
+      pending_invoice_items_behavior: 'exclude',
+      description: 'Charter aboard ' + CONFIG.BOAT_NAME + '. Captain and fuel are billed separately.',
+      'metadata[bookingId]': b.BookingID
+    });
+
+    stripe_(key, 'invoiceitems', {
+      customer: customer.id, invoice: invoice.id, currency: 'usd',
+      amount: Math.round(amount * 100),
+      description: CONFIG.BOAT_NAME + ' charter \u00b7 ' + b.CharterDate + ' \u00b7 ' + b.TimeBlock
+    });
+
+    var finalized = stripe_(key, 'invoices/' + invoice.id + '/finalize', {});
+    if (CONFIG.STRIPE_AUTO_SEND) finalized = stripe_(key, 'invoices/' + invoice.id + '/send', {});
+
+    return { ok: true, id: finalized.id, url: finalized.hosted_invoice_url,
+             sent: !!CONFIG.STRIPE_AUTO_SEND };
+  } catch (err) {
+    Logger.log('Stripe invoice failed for ' + b.BookingID + ': ' + err);
+    return { ok: false, error: String(err) };
+  }
+}
+
+/** POST to the Stripe API. Throws on a non-2xx so the caller can fall back. */
+function stripe_(key, path, params) {
+  var res = UrlFetchApp.fetch('https://api.stripe.com/v1/' + path, {
+    method: 'post',
+    headers: { Authorization: 'Bearer ' + key },
+    payload: params,
+    muteHttpExceptions: true
+  });
+  var code = res.getResponseCode();
+  var body = JSON.parse(res.getContentText() || '{}');
+  if (code < 200 || code >= 300) {
+    throw new Error(path + ' -> ' + code + ' ' + ((body.error && body.error.message) || res.getContentText()));
+  }
+  return body;
+}
+
+/** GET from the Stripe API. Throws on a non-2xx so the caller can fall back. */
+function stripeGet_(key, path) {
+  var res = UrlFetchApp.fetch('https://api.stripe.com/v1/' + path, {
+    method: 'get', headers: { Authorization: 'Bearer ' + key }, muteHttpExceptions: true
+  });
+  var code = res.getResponseCode();
+  var body = JSON.parse(res.getContentText() || '{}');
+  if (code < 200 || code >= 300) {
+    throw new Error(path + ' -> ' + code + ' ' + ((body.error && body.error.message) || res.getContentText()));
+  }
+  return body;
+}
+
+/** Store the Stripe key. Run once from the editor, then CLEAR the argument. */
+function setStripeKey(key) {
+  if (!key) { PROPS.deleteProperty('STRIPE_SECRET_KEY'); Logger.log('Stripe key removed.'); return; }
+  PROPS.setProperty('STRIPE_SECRET_KEY', key);
+  Logger.log('Stripe key stored. Now delete it from this function and save.');
+}
+
 // ====================== ACCEPT / DECLINE LINKS =============================
 /**
  * doGet is a PUBLIC endpoint, so accept/decline URLs carry an HMAC token.
@@ -1430,9 +1625,17 @@ function handleDecision_(e, action) {
     '<p><strong>' + esc_(when) + '</strong> \u2014 ' + esc_(b.PrimaryName || '') +
     ' \u00b7 party of ' + esc_(b.PartySize || '?') + '</p>' +
     '<p>They have their confirmation. It is on the calendar and they are invited.</p>' +
-    '<p class="box"><strong>Now invoice them $' + esc_(b.AmountPaid || '') + '</strong><br>' +
-    esc_(b.PrimaryEmail || '') + '<br>' +
-    '<a href="' + CONFIG.STRIPE_INVOICE_URL + '">Create the invoice in Stripe \u2192</a></p>' +
+    '<p class="box">' + (
+      (out.invoice && out.invoice.ok && out.invoice.sent)
+        ? '<strong>Invoice sent \u2713</strong><br>$' + esc_(b.AmountPaid || '') + ' to ' +
+          esc_(b.PrimaryEmail || '') + '<br><a href="' + out.invoice.url + '">View it in Stripe \u2192</a>'
+      : (out.invoice && out.invoice.ok)
+        ? '<strong>Invoice drafted, ready to send</strong><br>$' + esc_(b.AmountPaid || '') + ' to ' +
+          esc_(b.PrimaryEmail || '') + '<br><a href="' + out.invoice.url + '">Review and send it \u2192</a>'
+        : '<strong>Now invoice them $' + esc_(b.AmountPaid || '') + '</strong><br>' +
+          esc_(b.PrimaryEmail || '') + '<br>' +
+          '<a href="' + CONFIG.STRIPE_INVOICE_URL + '">Create the invoice in Stripe \u2192</a>'
+    ) + '</p>' +
     '<p style="color:#5f6b53">Waivers get signed at the dock. Booking ' + esc_(b.BookingID || id) + '</p>');
 }
 

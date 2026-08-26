@@ -83,7 +83,7 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Review'];
     <div class="card panel hidden" data-panel="4">
       <h2>Review your request</h2>
       <dl class="review" id="review"></dl>
-      <p class="pay-note">We'll hold this slot while Luis reviews it, and you'll hear back within a day.
+      <p class="pay-note">We'll hold this slot while Luis reviews it, and he gets back to you the same day.
         Nothing is charged now. Once he confirms, he sends your invoice for the boat. The captain fee and
         fuel are billed separately.</p>
       <div class="nav-row">
@@ -226,8 +226,8 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Review'];
           document.querySelector('[data-panel="4"]').innerHTML =
             `<h2>Request sent! ⚓</h2>
              <p>Reference <strong>${out.bookingId}</strong>. We're holding
-             ${state.date} · ${state.block.label} while Luis takes a look, and you'll hear back
-             within a day. Nothing has been charged.</p>
+             ${state.date} · ${state.block.label} while Luis takes a look, and he'll get back to you
+             the same day. Nothing has been charged.</p>
              <p class="muted">Once he confirms, you'll get your dock directions and an invoice for the boat.
              ${payload.captainStatus === 'need'
                ? "He'll line up a captain from the roster too." : ''}</p>

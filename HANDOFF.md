@@ -42,11 +42,15 @@ Tap one from your phone. That's the whole job.
 
 ### What happens automatically (you do nothing)
 
-- **The slot is held** the moment the request comes in, so nobody else can take that time while you decide.
-- **If you don't answer**, you get a nudge after 12 hours, and after 48 hours the hold releases itself so a
-  dead lead never blocks the boat. (Both numbers are adjustable.)
-- **On accept**: calendar event + guest invite, a dedicated **Drive folder** for the charter, and the
-  guest's confirmation email.
+- **The slot is held** the moment the request comes in, and **stays held until you answer** — no timer, no
+  auto-release. Website leads pay more than the other channels, so they keep the spot until you say no.
+  You get a reminder after 12 hours and once a day after that, so nothing sits forgotten.
+- **The calendar shows the price** right in the event title, so you can see what a day is worth at a glance.
+  Unanswered ones read **⏳ REQUEST · $880 · Name**.
+- **On accept**: calendar event + guest invite, a dedicated **Drive folder** for the charter, the guest's
+  confirmation email, **their charter agreement to sign**, and **their invoice** (see §5).
+- **The agreement chases itself.** If they haven't signed, we remind them automatically (up to 3 times,
+  and it stops the moment they sign). You get a short daily list of who's outstanding.
 - **Fuel** is set from the captain's post-charter report (flat $50) and emailed to you to invoice.
 - **A daily list** of accepted charters that aren't marked paid yet, so nothing sails for free.
 - **A review request** goes out automatically after each charter.
@@ -89,9 +93,20 @@ Tap one from your phone. That's the whole job.
 
 | Item | Amount | How it's collected |
 |---|---|---|
-| **Charter fee** | **$880 per time block** | **You invoice it** after you accept |
+| **Charter fee** | **$880 per time block** | Invoice goes out when you accept (see below) |
 | **Captain** | ~$100–$150/hr | Paid separately, directly to the captain |
 | **Fuel** | **$50 flat**, wherever you go | Invoiced after the trip |
+
+**Invoicing — your call, and you can change your mind any time:**
+
+- **Automatic (Stripe).** The moment you accept, the invoice is built for you with the right amount and
+  their email, and it's waiting in Stripe for you to glance at and send. We can also make it send itself.
+  Costs you Stripe's card fee: on an $880 charter that's about **$25.80**.
+- **Manual (your bank).** Leave Stripe switched off and the accept email just hands you the amount and
+  their email, so you bill however you like. **No card fees**, a bit more typing.
+
+Either way, if anything goes wrong on Stripe's end the charter is still confirmed — you just get told to
+bill it by hand. **Nothing ever charges a card on its own.**
 
 ---
 
@@ -108,16 +123,17 @@ Tap one from your phone. That's the whole job.
 - Code backed up on GitHub
 
 ### ⏳ Remaining to go fully live
-1. **Decide where the charter agreement gets signed.** It's the paperwork that makes the bareboat model
-   hold up, so we shouldn't drop it. Either email it after you accept, or sign it at the dock with the waivers.
-   **Either way the current form needs a copy made without the payment step**, since you're invoicing now.
-2. **Deploy the website** to Cloudflare (connect the GitHub repo — settings provided).
-3. **Choose the domain** (lanchaboat.com vs la-lancha.com) — then it's a one-line change and a custom-domain setup in Cloudflare.
-4. **Cleanup**: delete the leftover test bookings (e.g., the "CAL TEST" Sept-15 calendar event/rows and any "TEST123" rows).
+1. **A copy of the charter agreement without the payment step.** Everything for the automatic
+   send-and-chase is already built and waiting on it. Until it exists, the system stays quiet rather than
+   send anyone the old form and ask them to pay twice.
+2. **Decide on invoicing**: Stripe automatic, or your bank (see §5). Stripe needs a key set up once.
+3. **Deploy the website** to Cloudflare (connect the GitHub repo — settings provided).
+4. **Choose the domain** (lanchaboat.com vs la-lancha.com) — then it's a one-line change and a custom-domain setup in Cloudflare.
+5. **Cleanup**: delete the leftover test bookings (e.g., the "CAL TEST" Sept-15 calendar event/rows and any "TEST123" rows).
 
 ### 💡 Optional later
-- A printed **QR card for the dock** so guests scan and sign the waiver on their own phone.
-- Invoices drafted for you automatically in Stripe the moment you accept.
+- A printed **QR card for the dock** so guests scan and sign the waiver on their own phone (you mentioned
+  you may already have one — if so we'll point it at the right form).
 - Counter-offer buttons (right now you counter by replying to the offer email, which works fine).
 - Per-destination share images.
 
@@ -136,4 +152,6 @@ Tap one from your phone. That's the whole job.
 ## 8. Good to know
 - **Other platforms don't auto-sync.** Bookings from Boatsetter / GetMyBoat / Sailo / the Playpen won't appear automatically — **block those dates on the Quarters Charters calendar** so the website stays accurate. Your own site is the only channel that auto-blocks.
 - **The calendar is your control panel.** Adding/removing events there is how you open, block, and cancel availability. A request you haven't answered shows up as **⏳ REQUEST** so you can tell it apart from a confirmed charter.
-- **Nothing charges a card on its own.** You send every invoice yourself, so no money moves until you decide it should.
+- **Nothing charges a card on its own.** Invoices get prepared for you, but no money moves until you send one.
+- **A held slot stays held.** If you never answer a request, that time stays blocked. The daily reminder is
+  what keeps that from quietly costing you a booking, so it's worth clearing them out.
