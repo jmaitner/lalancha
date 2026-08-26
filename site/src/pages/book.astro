@@ -1,7 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
 import { ENDPOINT, BLOCKS, MAX_PARTY, DEFAULT_BLOCK_PRICE } from '../config.ts';
-const STEPS = ['Date & time', 'Captain', 'Your details', 'Confirm'];
+const STEPS = ['Date & time', 'Captain', 'Your details', 'Review'];
 ---
 <Base title="Book Quarters · lancha boat">
   <section class="wrap booking">
@@ -66,11 +66,12 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Confirm'];
         <label class="fld">Phone<input id="phone" inputmode="tel" /></label>
       </div>
       <label class="fld">Party size<select id="partySize"></select></label>
-      <label class="fld">Guest emails <span class="muted">(enter now if you have them. You can add them later.)</span>
-        <textarea id="guestEmails" rows="2" placeholder="one email per line"></textarea>
-      </label>
       <label class="fld">Add-ons / requests <span class="muted">(optional)</span>
         <input id="addOns" placeholder="water toys, extra hour, occasion…" />
+      </label>
+      <label class="fld">Anything you want Luis to know? <span class="muted">(optional)</span>
+        <textarea id="message" rows="3"
+          placeholder="What the day is for, questions, anything you'd like to ask about…"></textarea>
       </label>
       <div class="nav-row">
         <button class="btn-ghost-dark" data-back>← Back</button>
@@ -80,13 +81,14 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Confirm'];
 
     <!-- STEP 4 -->
     <div class="card panel hidden" data-panel="4">
-      <h2>Confirm your charter</h2>
+      <h2>Review your request</h2>
       <dl class="review" id="review"></dl>
-      <p class="pay-note">After you confirm, you'll get an email with your charter details and a secure
-        payment link for the charter amount. The captain fee and fuel are billed separately.</p>
+      <p class="pay-note">We'll hold this slot while Luis reviews it, and you'll hear back within a day.
+        Nothing is charged now. Once he confirms, he sends your invoice for the boat. The captain fee and
+        fuel are billed separately.</p>
       <div class="nav-row">
         <button class="btn-ghost-dark" data-back>← Back</button>
-        <button class="btn pink" id="submit">Confirm booking ⚓</button>
+        <button class="btn pink" id="submit">Send request ⚓</button>
       </div>
       <p id="result" class="form-msg"></p>
     </div>
@@ -174,10 +176,6 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Confirm'];
       renderReview(); setStep(4);
     });
 
-    function gatherGuests() {
-      return document.getElementById('guestEmails').value
-        .split(/[\n,]/).map(s => s.trim()).filter(Boolean).map(e => ({ name: '', email: e }));
-    }
     function renderReview() {
       const rows = [
         ['Date', state.date],
@@ -190,8 +188,8 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Confirm'];
       ];
       const addOns = document.getElementById('addOns').value.trim();
       if (addOns) rows.push(['Add-ons', addOns]);
-      const guests = gatherGuests();
-      if (guests.length) rows.push(['Guest waivers', guests.length + ' email(s)']);
+      const message = document.getElementById('message').value.trim();
+      if (message) rows.push(['Your note', message]);
       document.getElementById('review').innerHTML =
         rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
     }
@@ -199,9 +197,9 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Confirm'];
     document.getElementById('submit').addEventListener('click', async () => {
       const btn = document.getElementById('submit');
       const msg = document.getElementById('result');
-      btn.disabled = true; msg.textContent = 'Booking…'; msg.className = 'form-msg';
+      btn.disabled = true; msg.textContent = 'Sending…'; msg.className = 'form-msg';
       const payload = {
-        action: 'newBooking', charterDate: state.date, timeBlock: state.block.id,
+        action: 'newRequest', charterDate: state.date, timeBlock: state.block.id,
         firstName: document.getElementById('firstName').value.trim(),
         lastName: document.getElementById('lastName').value.trim(),
         primaryName: (document.getElementById('firstName').value.trim() + ' ' +
@@ -210,7 +208,8 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Confirm'];
         phone: document.getElementById('phone').value.trim(),
         partySize: document.getElementById('partySize').value,
         captainStatus: state.captain, addOns: document.getElementById('addOns').value.trim(),
-        amountPaid: state.blockPrice, guests: gatherGuests(),
+        message: document.getElementById('message').value.trim(),
+        amountPaid: state.blockPrice,
       };
       try {
         const res = await fetch(ENDPOINT, {
@@ -219,17 +218,19 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Confirm'];
         });
         const out = await res.json();
         if (out && out.error === 'slot_taken') {
-          msg.textContent = 'That slot was just booked. Please pick another time.';
+          msg.textContent = 'That slot was just taken. Please pick another time.';
           msg.className = 'form-msg err'; btn.disabled = false;
           setStep(1); loadPricing(); return;
         }
         if (out.ok) {
           document.querySelector('[data-panel="4"]').innerHTML =
-            `<h2>You're booked! 🎉</h2>
-             <p>Confirmation <strong>${out.bookingId}</strong> is on its way to your inbox. Dock directions,
-             the charter agreement, the guest waiver, and your secure payment link.</p>
-             <p class="muted">${payload.captainStatus === 'need'
-               ? "We're already reaching out to captains and will confirm one shortly." : ''}</p>
+            `<h2>Request sent! ⚓</h2>
+             <p>Reference <strong>${out.bookingId}</strong>. We're holding
+             ${state.date} · ${state.block.label} while Luis takes a look, and you'll hear back
+             within a day. Nothing has been charged.</p>
+             <p class="muted">Once he confirms, you'll get your dock directions and an invoice for the boat.
+             ${payload.captainStatus === 'need'
+               ? "He'll line up a captain from the roster too." : ''}</p>
              <a class="btn" href="/">← Back to home</a>`;
           window.scrollTo({ top: 0, behavior: 'smooth' });
         } else { throw new Error(out.error || 'error'); }

@@ -13,16 +13,23 @@ It's two parts:
 
 Raw source photos are in `Assetts/` (gitignored, local only); optimized web copies live in `site/public/images/`.
 
-## How it works (data flow)
-1. Customer books on the site → the site POSTs `newBooking` to the Apps Script web-app endpoint (and GETs `?action=pricing&date=` for live price + availability).
-2. Apps Script (`createBooking`): checks the **Quarters Charters** Google Calendar for a free slot (race guard) → creates a calendar event (auto-confirm) → makes a Drive folder → logs the **Bookings** row → seeds the **Guests** roster → emails the guest (Luis's onboarding template w/ prefilled JotForm links) → emails Luis.
-3. Customer signs **JotForm Charter Agreement** (`260923725423052`) + **pays via Stripe** (User Defined Amount, prefilled from the booking link). Guests sign **JotForm Waiver** (`261307203350039`).
-4. JotForm → Google Sheets (native integration). A timer (`reconcileJotform`, every 10 min) reads those sheets and stamps **Paid / AgreementSigned / WaiverSigned** onto Bookings/Guests, and alerts on amount mismatches.
-5. Captain fills the **Captain Post-Charter Report** (Google Form) → `onCaptainFormSubmit` sets fuel (flat $50 per charter) → writes it to the booking + emails Luis what to invoice.
-6. Daily triggers: waiver-reminder digest (9am), Google-review request to finished charters (10am).
+## How it works (data flow) — OFFER FLOW
+Nothing is confirmed until Luis says yes. He gets every charter as an offer he accepts or declines.
+
+1. Customer requests on the site → the site POSTs `newRequest` to the Apps Script web-app endpoint (and GETs `?action=pricing&date=` for live price + availability). `newBooking` is the legacy name and maps to the same place, so a cached old page can't auto-confirm.
+2. `createRequest`: race-guards against the **Quarters Charters** calendar → pencils in a **pending hold** (event titled `⏳ REQUEST — …`, guest NOT invited) → logs a Bookings row with `Status: Requested` → emails Luis **the offer** (price they booked at, their message, Accept/Decline buttons, reply-to = the guest) → sends the guest a "we got it, nothing charged" ack.
+3. Luis taps **Accept** or **Decline** in that email (`doGet ?action=accept|decline&id=&t=`). The `t` is an HMAC token — `doGet` is public, so without it anyone could confirm or kill charters by guessing an ID. Backup path: the **Status** dropdown in the Bookings sheet (`onBookingsEdit`).
+   - **Accept** → Drive folder, calendar event promoted + guest invited, guest confirmation email, and Luis gets an "invoice $X" reminder. **Luis invoices manually** (Stripe dashboard).
+   - **Decline** → hold deleted (slot reopens), guest let down gently.
+4. Unanswered requests: `expireStaleRequests` (hourly) nudges Luis at `NUDGE_HOURS` (12) and releases the hold at `HOLD_HOURS` (48) so dead leads don't block the boat.
+5. **Waivers are signed at the dock.** No pre-trip waiver emails. `recordWaiverSigned` upserts guests who weren't pre-entered, so the roster fills itself as people sign.
+6. `reconcileJotform` (every 10 min) still stamps **AgreementSigned** from the JotForm→Sheets integration. It no longer writes Status or Paid — Luis owns both now.
+7. Captain fills the **Captain Post-Charter Report** (Google Form) → `onCaptainFormSubmit` sets fuel (flat $50 per charter) → writes it to the booking + emails Luis what to invoice.
+8. Daily triggers: unpaid digest (9am, accepted charters with a blank Paid column), Google-review request to finished charters (10am).
 
 ## Key files
-- `apps-script/Code.gs` — the entire backend. CONFIG block at top holds all IDs/links/prices. `setupLaLanchaSystem()` bootstraps everything (idempotent). Reconcile, calendar, reviews, fuel, forms all here.
+- `apps-script/Code.gs` — the entire backend. CONFIG block at top holds all IDs/links/prices. `setupLaLanchaSystem()` bootstraps everything (idempotent). Offer flow, reconcile, calendar, reviews, fuel, forms all here.
+  - Offer flow: `createRequest` / `acceptRequest` / `declineRequest` / `expireStaleRequests`, `handleDecision_` + `token_` (signed links), `onBookingsEdit` (sheet backup), `migrateToOfferFlow()` (adds the new columns to a live sheet), `_testRequest()` (sends yourself a real offer email).
 - `apps-script/README.md` — backend setup.
 - `site/src/config.ts` — endpoint URL, time blocks, default price.
 - `site/src/destinations.ts` — the "where we go" destination content.
@@ -32,7 +39,8 @@ Raw source photos are in `Assetts/` (gitignored, local only); optimized web copi
 
 ## Common changes
 - **Change the standard price**: `DEFAULT_BLOCK_PRICE` in both `apps-script/Code.gs` CONFIG and `site/src/config.ts`. Premium per-date prices: the **Pricing** tab in the Operations sheet.
-- **Edit the confirmation email**: `sendBookingConfirmation_` in Code.gs.
+- **Change how long a request holds the slot**: `HOLD_HOURS` / `NUDGE_HOURS` in CONFIG.
+- **Edit the offer email Luis gets**: `sendOfferToLuis_`. The accepted-charter email: `sendAcceptedEmail_`.
 - **Change time blocks**: `TIME_BLOCKS` + `BLOCK_WINDOWS` in Code.gs CONFIG (and `BLOCKS` in site config.ts).
 - **Brand colors/fonts**: `:root` vars in `site/src/layouts/Base.astro`.
 - After editing Code.gs: `cd apps-script && npx clasp push && npx clasp create-deployment` (or redeploy the existing deployment id). After editing the site: `cd site && npm run build`, commit, push (Cloudflare redeploys).
@@ -48,3 +56,6 @@ Raw source photos are in `Assetts/` (gitignored, local only); optimized web copi
 - Apps Script web-app POST returns a 302 redirect; for browser `fetch` send `Content-Type: text/plain` to avoid a CORS preflight.
 - Canonical/OG/sitemap URLs use `la-lancha.com` as a placeholder — change `site` in `site/astro.config.mjs` once the real domain (lanchaboat.com vs la-lancha.com) is chosen.
 - `clasp create-script` overwrites `appsscript.json` with a default — keep the real manifest (full scopes + webapp config).
+- **Accept/Decline links need the deployed URL.** After any new deployment run `setWebAppUrl('<the /exec url>')` once, or the buttons in Luis's offer emails point at the wrong deployment.
+- **`CONFIG.LINK_AGREEMENT` still bundles Stripe payment.** It must NOT go to guests under the offer flow. The accepted-charter email only links an agreement once `LINK_AGREEMENT_NOPAY` (a payment-free clone of the JotForm) is filled in; until then it omits it.
+- **Bookings column order is positional.** `appendRow_`/`updateBooking_` map `HEADERS.Bookings` by index against the live sheet, so only ever add new columns at the END, then run `migrateToOfferFlow()`.

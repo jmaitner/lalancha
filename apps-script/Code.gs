@@ -53,6 +53,18 @@ const CONFIG = {
   GOOGLE_REVIEW_URL: 'https://share.google/RewjcwDIgFhDb8Gzs', // post-charter review ask
   LINK_CAPTAINS:  'https://drive.google.com/file/d/1961Eq70KU8SnwpasENDAAH3YB4cOLGmx/view',
 
+  // --- Offer flow (Luis approves every charter before it is confirmed) ---
+  // A request pencils the slot in on the calendar so nobody else can take it while
+  // Luis decides. If he never answers, the hold releases itself.
+  HOLD_HOURS:  48,   // pending request auto-expires (slot reopens) after this long
+  NUDGE_HOURS: 12,   // remind Luis about a still-unanswered request after this long
+  // Charter Agreement WITHOUT the Stripe payment widget. Luis invoices separately now,
+  // so the pay-bundled form (LINK_AGREEMENT) must NOT go to guests. Until this clone
+  // exists, the accepted-charter email simply omits the agreement link.
+  LINK_AGREEMENT_NOPAY:     '',   // e.g. 'https://form.jotform.com/XXXXXXXXXXXXX'
+  AGREEMENT_NOPAY_SHEET_ID: '',   // its Google Sheet (reconcile reads this if set)
+  STRIPE_INVOICE_URL: 'https://dashboard.stripe.com/invoices/create',
+
   // Existing Drive folder to build everything INSIDE (the shared La Lancha root).
   // Leave '' to instead create a new "La Lancha" folder in My Drive.
   ROOT_FOLDER_ID: '15f-hxuD-qsdAk4HtzGZ4sAHfuf_jz9jn',
@@ -80,7 +92,10 @@ const HEADERS = {
              'PrimaryEmail', 'Phone', 'PartySize', 'CaptainStatus',
              'CaptainAssigned', 'AddOns', 'AmountPaid', 'StripeRef',
              'Destination', 'EngineHours', 'FuelDue', 'Paid', 'AgreementSigned',
-             'Status', 'FolderURL', 'EventId', 'ReviewRequested', 'Notes'],
+             'Status', 'FolderURL', 'EventId', 'ReviewRequested', 'Notes',
+             // Appended for the offer flow. Always add new columns at the END —
+             // appendRow_/updateBooking_ map by position against the live sheet.
+             'GuestMessage', 'RespondedAt', 'InvoiceSent'],
   Leads:    ['Created', 'Name', 'Email', 'Phone', 'Source', 'Interest',
              'Status', 'Notes'],
   Guests:   ['BookingID', 'GuestName', 'Email', 'IsPrimary', 'WaiverSent',
@@ -135,9 +150,13 @@ function setupLaLanchaSystem() {
     CALENDAR_ID:        calendar.getId()
   });
 
+  secret_();              // mint the accept/decline signing key if it does not exist
+  migrateToOfferFlow();   // offer-flow columns + Status dropdown on the live sheet
   installTriggers_();
 
   Logger.log('✅ Setup complete.');
+  Logger.log('Now deploy, then run setWebAppUrl(\'<your /exec url>\') so the Accept/Decline '
+    + 'buttons in Luis’s offer emails point at the live deployment.');
   Logger.log('Operations sheet: ' + ss.getUrl());
   Logger.log('Inquiry form:     ' + inquiryForm.getPublishedUrl());
   Logger.log('Captain form:     ' + captainForm.getPublishedUrl());
@@ -297,38 +316,41 @@ function createHandoffDoc() {
   Logger.log('✅ Handoff doc created: ' + doc.getUrl());
 }
 
-// ====================== CORE: NEW BOOKING ==================================
+// ====================== CORE: REQUEST -> ACCEPT / DECLINE ==================
 /**
- * The heart of the system. Call this when a charter is BOOKED (from doPost,
- * or manually for testing). `data` shape:
+ * OFFER FLOW. Nothing is confirmed until Luis says yes.
+ *
+ *   site  -> createRequest()   pencils the slot in, emails Luis the offer
+ *   Luis  -> acceptRequest()   confirms it, invites the guest, he invoices
+ *         -> declineRequest()  releases the slot, lets the guest down easy
+ *
+ * The pencilled-in calendar event is what holds the slot: getAvailability_()
+ * counts any event, so a pending request blocks the time automatically and
+ * declining/expiring just deletes the event to reopen it.
+ *
+ * `data` shape:
  * {
  *   charterDate: '2026-07-04', timeBlock: 'afternoon',
  *   primaryName: 'Maria R.', primaryEmail: 'maria@x.com', phone: '...',
  *   partySize: 6, captainStatus: 'need' | 'have',
- *   addOns: 'Water toys, +1hr', amountPaid: 1500, stripeRef: 'pi_123',
- *   guests: [ {name:'Guest 2', email:'g2@x.com'}, ... ]   // optional
+ *   addOns: 'Water toys, +1hr', message: 'birthday trip, any chance of...',
+ *   amountPaid: 880,                                    // the price they saw
+ *   guests: [ {name:'Guest 2', email:'g2@x.com'}, ... ] // optional
  * }
  */
-function createBooking(data) {
+function createRequest(data) {
   const ss = openSS_();
 
-  // 0) Race guard — re-check the calendar; the slot may have just been taken.
+  // Race guard — the slot may have just been taken or pencilled in by someone else.
   if (getAvailability_(data.charterDate)[data.timeBlock]) {
     return { ok: false, error: 'slot_taken' };
   }
 
   const bookingId = newBookingId_(data.charterDate);
 
-  // 1) Dedicated Drive folder for this charter + copy templates in
-  const charters = DriveApp.getFolderById(PROPS.getProperty('CHARTERS_FOLDER_ID'));
-  const folderName = data.charterDate + ' — ' + (data.primaryName || 'Guest') + ' (' + bookingId + ')';
-  const folder = charters.createFolder(folderName);
-  copyTemplatesInto_(folder);
+  // Pencil it in. No guest invite yet — an invite would read as a confirmation.
+  const eventId = createCalendarEvent_(data, bookingId, '', true);
 
-  // 2) Auto-confirm onto the calendar — this is also what blocks the slot.
-  const eventId = createCalendarEvent_(data, bookingId, folder.getUrl());
-
-  // 3) Log the booking
   appendRow_(ss, 'Bookings', {
     BookingID: bookingId,
     Created: now_(),
@@ -341,30 +363,175 @@ function createBooking(data) {
     CaptainStatus: data.captainStatus || '',
     CaptainAssigned: '',
     AddOns: data.addOns || '',
-    AmountPaid: data.amountPaid || '',
-    StripeRef: data.stripeRef || '',
-    Status: 'Booked',
-    FolderURL: folder.getUrl(),
+    AmountPaid: data.amountPaid || '',   // quoted price, not money received
+    StripeRef: '',
+    Status: 'Requested',
+    FolderURL: '',
     EventId: eventId,
-    Notes: ''
+    Notes: '',
+    GuestMessage: data.message || '',
+    RespondedAt: '',
+    InvoiceSent: ''
   });
 
-  // 3) Seed the guest signing roster (primary + any guests) — also captures leads
-  var guests = [{ name: data.primaryName, email: data.primaryEmail, primary: true }];
-  (data.guests || []).forEach(function (g) { guests.push({ name: g.name, email: g.email, primary: false }); });
-  guests.forEach(function (g) {
-    if (!g.email) return;
-    appendRow_(ss, 'Guests', {
-      BookingID: bookingId, GuestName: g.name || '', Email: g.email,
-      IsPrimary: g.primary ? 'YES' : '', WaiverSent: '', WaiverSigned: '', SignedPDF: ''
+  sendOfferToLuis_(data, bookingId);
+  sendRequestAck_(data, bookingId);
+
+  return { ok: true, bookingId: bookingId, status: 'requested' };
+}
+
+/**
+ * Luis said yes. Confirms the charter: folder, calendar invite, guest email.
+ * Idempotent — tapping Accept twice (or after the sheet dropdown) is harmless.
+ */
+function acceptRequest(bookingId) {
+  const b = findBooking_(bookingId);
+  if (!b) return { ok: false, error: 'not_found' };
+  if (b.Status === 'Accepted') return { ok: true, already: true, booking: b };
+  if (b.Status === 'Declined' || b.Status === 'Expired') {
+    return { ok: false, error: 'slot_released', booking: b };
+  }
+
+  // Dedicated Drive folder, created now that the charter is real.
+  const charters = DriveApp.getFolderById(PROPS.getProperty('CHARTERS_FOLDER_ID'));
+  const folder = charters.createFolder(
+    b.CharterDate + ' \u2014 ' + (b.PrimaryName || 'Guest') + ' (' + bookingId + ')');
+  copyTemplatesInto_(folder);
+
+  confirmCalendarEvent_(b, folder.getUrl());
+
+  // Seed the roster with the primary only (deferred from request time so declines
+  // leave no junk). The rest of the party lands here as they sign at the dock —
+  // recordWaiverSigned() upserts anyone who was not pre-entered.
+  if (b.PrimaryEmail) {
+    appendRow_(openSS_(), 'Guests', {
+      BookingID: bookingId, GuestName: b.PrimaryName || '', Email: b.PrimaryEmail,
+      IsPrimary: 'YES', WaiverSent: '', WaiverSigned: '', SignedPDF: ''
     });
+  }
+
+  updateBooking_(bookingId, { Status: 'Accepted', RespondedAt: now_(), FolderURL: folder.getUrl() });
+
+  sendAcceptedEmail_(b, bookingId);
+  sendAcceptedReceiptToLuis_(b, bookingId, folder.getUrl());
+
+  return { ok: true, booking: b, folderUrl: folder.getUrl() };
+}
+
+/** Luis passed. Releases the slot and emails the guest. */
+function declineRequest(bookingId, reason) {
+  const b = findBooking_(bookingId);
+  if (!b) return { ok: false, error: 'not_found' };
+  if (b.Status === 'Declined') return { ok: true, already: true, booking: b };
+  if (b.Status === 'Accepted') return { ok: false, error: 'already_accepted', booking: b };
+
+  releaseHold_(b);   // delete the pencilled-in event -> slot reopens
+  updateBooking_(bookingId, {
+    Status: 'Declined', RespondedAt: now_(),
+    Notes: reason || b.Notes || ''
   });
+  sendDeclinedEmail_(b, bookingId);
+  return { ok: true, booking: b };
+}
 
-  // Emails: guest confirmation + Luis notification (one email, captain-need flagged)
-  sendBookingConfirmation_(data, bookingId);
-  notifyLuisNewBooking_(data, bookingId, folder.getUrl());
+/**
+ * Hourly. Nudges Luis about requests he hasn't answered, and releases the hold
+ * on ones that have gone stale so the boat doesn't sit blocked by a dead lead.
+ */
+function expireStaleRequests() {
+  const sh = openSS_().getSheetByName('Bookings');
+  const rows = sh.getDataRange().getValues();
+  const H = HEADERS.Bookings;
+  const nowMs = new Date().getTime();
+  var nudges = [];
 
-  return { ok: true, bookingId: bookingId, folderUrl: folder.getUrl() };
+  for (var r = 1; r < rows.length; r++) {
+    if (String(rows[r][H.indexOf('Status')]) !== 'Requested') continue;
+    var b = rowToBooking_(rows[r], H);
+    var ageH = (nowMs - parseStamp_(rows[r][H.indexOf('Created')])) / 3600000;
+    if (!isFinite(ageH)) continue;
+
+    if (ageH >= CONFIG.HOLD_HOURS) {
+      releaseHold_(b);
+      sh.getRange(r + 1, H.indexOf('Status') + 1).setValue('Expired');
+      sh.getRange(r + 1, H.indexOf('RespondedAt') + 1).setValue(now_());
+      PROPS.deleteProperty('NUDGED_' + b.BookingID);
+      sendExpiredEmail_(b);
+    } else if (ageH >= CONFIG.NUDGE_HOURS && !PROPS.getProperty('NUDGED_' + b.BookingID)) {
+      // Nudge-once flag lives in Script Properties, not the sheet, so Luis
+      // writing his own note on a request does not suppress the reminder.
+      nudges.push(b);
+      PROPS.setProperty('NUDGED_' + b.BookingID, now_());
+    }
+  }
+
+  if (nudges.length) {
+    var body = 'These charter requests are still waiting on you. They release themselves '
+      + CONFIG.HOLD_HOURS + 'h after they came in.\n\n'
+      + nudges.map(function (b) {
+          return b.CharterDate + ' \u00b7 ' + b.TimeBlock + ' \u00b7 ' + b.PrimaryName
+               + ' \u00b7 $' + b.AmountPaid + '\n  Accept:  ' + actionUrl_('accept', b.BookingID)
+               + '\n  Decline: ' + actionUrl_('decline', b.BookingID);
+        }).join('\n\n');
+    GmailApp.sendEmail(CONFIG.OWNER_EMAIL,
+      '\u23f3 ' + nudges.length + ' charter request(s) waiting on you', body);
+  }
+}
+
+/** Daily. Accepted charters with nothing in the Paid column, so none sail unpaid. */
+function unpaidDigest() {
+  const rows = openSS_().getSheetByName('Bookings').getDataRange().getValues();
+  const H = HEADERS.Bookings;
+  var open = [];
+  for (var r = 1; r < rows.length; r++) {
+    if (String(rows[r][H.indexOf('Status')]) !== 'Accepted') continue;
+    if (rows[r][H.indexOf('Paid')]) continue;
+    var b = rowToBooking_(rows[r], H);
+    var win = blockWindowFromLabel_(rows[r][H.indexOf('CharterDate')], rows[r][H.indexOf('TimeBlock')]);
+    if (win && win.end < new Date()) continue;   // already sailed; not worth nagging
+    open.push(b);
+  }
+  if (!open.length) return;
+  GmailApp.sendEmail(CONFIG.OWNER_EMAIL, '\ud83d\udcb5 Charters not marked paid (' + open.length + ')',
+    'Accepted and coming up, with nothing in the Paid column yet:\n\n' +
+    open.map(function (b) {
+      return '  ' + b.CharterDate + ' \u00b7 ' + b.TimeBlock + ' \u00b7 ' + b.PrimaryName +
+             ' \u00b7 $' + b.AmountPaid + '  (' + b.BookingID + ')';
+    }).join('\n') +
+    '\n\nMark the Paid column in the Bookings sheet once the invoice clears and this stops.');
+}
+
+/** Back-compat: direct-confirm a charter without an offer round-trip. */
+function createBooking(data) {
+  const out = createRequest(data);
+  if (!out.ok) return out;
+  acceptRequest(out.bookingId);
+  return out;
+}
+
+// --- booking row helpers ---
+function rowToBooking_(row, H) {
+  var b = {};
+  H.forEach(function (h, i) {
+    var v = row[i];
+    if (h === 'CharterDate' && v instanceof Date) v = Utilities.formatDate(v, CONFIG.TIMEZONE, 'yyyy-MM-dd');
+    b[h] = v;
+  });
+  return b;
+}
+function findBooking_(bookingId) {
+  const rows = openSS_().getSheetByName('Bookings').getDataRange().getValues();
+  const H = HEADERS.Bookings;
+  for (var r = 1; r < rows.length; r++) {
+    if (String(rows[r][H.indexOf('BookingID')]) === String(bookingId)) return rowToBooking_(rows[r], H);
+  }
+  return null;
+}
+/** Parse a now_()-style 'yyyy-MM-dd HH:mm' stamp (or a real Date) into epoch ms. */
+function parseStamp_(v) {
+  if (v instanceof Date) return v.getTime();
+  var m = String(v).match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime() : NaN;
 }
 
 // ====================== CORE: NEW LEAD =====================================
@@ -413,7 +580,11 @@ function recordWaiverSigned(bookingId, email, signedPdfUrl, guestName) {
   return { ok: true, added: true };
 }
 
-/** Email Luis a "who still needs to sign" summary per active booking. */
+/**
+ * Email Luis a "who still needs to sign" summary per active booking.
+ * NO LONGER ON A TRIGGER — waivers are signed at the dock. Kept because it is
+ * still useful to run by hand for a big group that wants to sign ahead.
+ */
 function sendWaiverReminders() {
   const ss = openSS_();
   const rows = ss.getSheetByName('Guests').getDataRange().getValues();
@@ -444,7 +615,10 @@ function doPost(e) {
     const body = JSON.parse(e.postData.contents);
     var out;
     switch (body.action) {
-      case 'newBooking':   out = createBooking(body); break;
+      // 'newBooking' is the old name. It maps here too, so a cached copy of the
+      // old site page creates a request instead of silently auto-confirming.
+      case 'newRequest':
+      case 'newBooking':   out = createRequest(body); break;
       case 'newLead':      out = createLead(body); break;
       case 'waiverSigned': out = recordWaiverSigned(body.bookingId, body.email, body.signedPdfUrl, body.guestName); break;
       default: out = { ok: false, error: 'unknown action: ' + body.action };
@@ -456,12 +630,17 @@ function doPost(e) {
 }
 
 /**
- * GET endpoint for the Astro site.
- *   ?action=pricing&date=YYYY-MM-DD  -> { ok, date, blocks:{morning,afternoon,night} }
- *   (no action)                      -> health check
+ * GET endpoint.
+ *   ?action=pricing&date=YYYY-MM-DD   -> { ok, date, blocks, booked }   (site)
+ *   ?action=accept|decline&id=..&t=.. -> HTML page                      (Luis)
+ *   (no action)                       -> health check
  */
 function doGet(e) {
   const action = e && e.parameter ? e.parameter.action : null;
+
+  // --- Luis's one-tap accept / decline from the offer email ---
+  if (action === 'accept' || action === 'decline') return handleDecision_(e, action);
+
   if (action === 'pricing') {
     return json_({ ok: true, date: e.parameter.date || null,
       blocks: getPricing_(e.parameter.date), booked: getAvailability_(e.parameter.date) });
@@ -593,14 +772,75 @@ function installTriggers_() {
   const captainForm = FormApp.openById(PROPS.getProperty('CAPTAIN_FORM_ID'));
   ScriptApp.newTrigger('onCaptainFormSubmit').forForm(captainForm).onFormSubmit().create();
 
-  // Daily waiver-reminder digest at 9am
-  ScriptApp.newTrigger('sendWaiverReminders').timeBased().atHour(9).everyDays(1).create();
+  // Offer flow: nudge Luis on stale requests, release dead holds. Hourly.
+  ScriptApp.newTrigger('expireStaleRequests').timeBased().everyHours(1).create();
+
+  // Backup path for accept/decline: change Status in the Bookings sheet.
+  ScriptApp.newTrigger('onBookingsEdit')
+    .forSpreadsheet(PROPS.getProperty('SPREADSHEET_ID')).onEdit().create();
+
+  // Daily "accepted but not marked paid" digest at 9am.
+  // (Waiver reminders are gone: guests sign at the dock now.)
+  ScriptApp.newTrigger('unpaidDigest').timeBased().atHour(9).everyDays(1).create();
 
   // Daily post-charter review request at 10am
   ScriptApp.newTrigger('requestReviews').timeBased().atHour(10).everyDays(1).create();
 
-  // Reconcile JotForm submissions (agreement payment/sign + waivers) every 10 min
+  // Reconcile JotForm submissions (agreement signature + waivers) every 10 min
   ScriptApp.newTrigger('reconcileJotform').timeBased().everyMinutes(10).create();
+}
+
+/**
+ * Backup accept/decline: set Status to Accepted or Declined in the Bookings
+ * sheet and this fires the same code the email buttons do. Handy when Luis is
+ * already in the sheet, or if an email link ever misbehaves.
+ */
+function onBookingsEdit(e) {
+  try {
+    if (!e || !e.range || e.range.getSheet().getName() !== 'Bookings') return;
+    var H = HEADERS.Bookings;
+    if (e.range.getColumn() !== H.indexOf('Status') + 1 || e.range.getRow() < 2) return;
+    var v = String(e.value || '').trim();
+    if (v !== 'Accepted' && v !== 'Declined') return;
+    var sh = e.range.getSheet();
+    var bookingId = sh.getRange(e.range.getRow(), H.indexOf('BookingID') + 1).getValue();
+    if (!bookingId) return;
+    // Put the old value back first; accept/declineRequest writes the real one,
+    // and this keeps the guard in those functions meaningful.
+    e.range.setValue(e.oldValue || 'Requested');
+    if (v === 'Accepted') acceptRequest(bookingId); else declineRequest(bookingId, 'Declined in sheet');
+  } catch (err) {
+    Logger.log('onBookingsEdit: ' + err);
+  }
+}
+
+/**
+ * Run once on the existing Operations sheet. Adds the offer-flow columns to the
+ * live Bookings tab (at the end, so nothing shifts) and puts a Status dropdown
+ * on the column. Safe to re-run.
+ */
+function migrateToOfferFlow() {
+  var sh = openSS_().getSheetByName('Bookings');
+  var live = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0];
+  var added = [];
+  HEADERS.Bookings.forEach(function (h) {
+    if (live.indexOf(h) < 0) { live.push(h); added.push(h); }
+  });
+  if (added.length) {
+    sh.getRange(1, 1, 1, live.length).setValues([live]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  if (live.join('|') !== HEADERS.Bookings.join('|')) {
+    Logger.log('\u26a0\ufe0f Live column order differs from HEADERS.Bookings.\n live: ' +
+      JSON.stringify(live) + '\n code: ' + JSON.stringify(HEADERS.Bookings) +
+      '\n Fix the sheet to match before relying on appendRow_/updateBooking_.');
+  }
+  var c = HEADERS.Bookings.indexOf('Status') + 1;
+  sh.getRange(2, c, Math.max(sh.getMaxRows() - 1, 1)).setDataValidation(
+    SpreadsheetApp.newDataValidation()
+      .requireValueInList(['Requested', 'Accepted', 'Declined', 'Expired', 'Cancelled'], true)
+      .setAllowInvalid(true).build());
+  Logger.log('Migration done. Added: ' + (added.join(', ') || 'nothing'));
 }
 
 function getOrCreateInquiryForm_(folder, ss) {
@@ -660,57 +900,197 @@ function getOrCreateCaptainForm_(folder, ss) {
   return form;
 }
 
+// ====================== EMAILS ============================================
+/** Shared wrapper so every guest-facing email looks like the same business. */
+function shell_(inner) {
+  return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;' +
+         'color:#1a1a1a;max-width:600px">' + inner + '</div>';
+}
+function sendHtml_(to, subject, html, replyTo) {
+  var opts = { htmlBody: html, name: CONFIG.BUSINESS_NAME };
+  if (replyTo) opts.replyTo = replyTo;
+  GmailApp.sendEmail(to, subject, htmlToText_(html), opts);
+}
+
 /**
- * Luis's real onboarding email (bareboat/demise model). Sent on every booking.
- * Captain paragraph adapts to whether the guest needs one or is bringing their own.
+ * THE OFFER. What Luis actually gets: the charter, the price they booked at,
+ * whatever they wrote him, and two buttons. Reply-to is the guest, so hitting
+ * reply is how he counter-offers or asks a question.
  */
-function sendBookingConfirmation_(data, bookingId) {
+function sendOfferToLuis_(data, bookingId) {
+  var block = CONFIG.TIME_BLOCKS[data.timeBlock] || data.timeBlock;
+  var needs = String(data.captainStatus).toLowerCase() === 'need';
+  var row = function (k, v) {
+    return '<tr><td style="padding:5px 14px 5px 0;color:#5f6b53;white-space:nowrap">' + k +
+           '</td><td style="padding:5px 0"><strong>' + v + '</strong></td></tr>';
+  };
+  var btn = function (href, label, bg) {
+    return '<a href="' + href + '" style="display:inline-block;padding:14px 30px;margin:0 8px 10px 0;' +
+           'background:' + bg + ';color:#fff;text-decoration:none;border-radius:999px;' +
+           'font-weight:bold;font-size:16px">' + label + '</a>';
+  };
+
+  var html = shell_(
+    '<p style="font-size:13px;color:#5f6b53;margin:0 0 4px;letter-spacing:.08em">NEW CHARTER REQUEST</p>' +
+    '<h2 style="margin:0 0 16px;font-size:22px">' + esc_(data.primaryName || 'Guest') +
+      ' wants ' + esc_(CONFIG.BOAT_NAME) + '</h2>' +
+    '<table style="font-size:15px;border-collapse:collapse;margin-bottom:18px">' +
+      row('Date', esc_(data.charterDate)) +
+      row('Time', esc_(block)) +
+      row('Party', esc_(data.partySize || '?')) +
+      row('Their price', '$' + esc_(data.amountPaid || CONFIG.DEFAULT_BLOCK_PRICE)) +
+      row('Captain', needs ? 'needs one from the roster' : 'bringing their own') +
+      (data.addOns ? row('Asks for', esc_(data.addOns)) : '') +
+      row('Contact', esc_(data.primaryEmail || '') + (data.phone ? '<br>' + esc_(data.phone) : '')) +
+    '</table>' +
+    (data.message
+      ? '<p style="background:#fff;border-left:3px solid #c2185b;padding:12px 14px;margin:0 0 18px">' +
+        '<span style="color:#5f6b53;font-size:13px">They wrote:</span><br>' + esc_(data.message) + '</p>'
+      : '') +
+    '<p style="margin:0 0 6px">' +
+      btn(actionUrl_('accept', bookingId), 'Accept', '#2e7d32') +
+      btn(actionUrl_('decline', bookingId), 'Decline', '#8d8d8d') + '</p>' +
+    '<p style="color:#5f6b53;font-size:13px">Accepting confirms them, puts it on the calendar and sends ' +
+      'their details. You invoice the $' + esc_(data.amountPaid || CONFIG.DEFAULT_BLOCK_PRICE) +
+      ' yourself. Waivers get signed at the dock.</p>' +
+    '<p style="color:#5f6b53;font-size:13px">The slot is held for you until then, and releases itself after ' +
+      CONFIG.HOLD_HOURS + ' hours. Want to negotiate instead? Just hit reply, it goes straight to them.</p>' +
+    '<p style="color:#999;font-size:12px">Booking ' + bookingId + '</p>');
+
+  sendHtml_(CONFIG.OWNER_EMAIL,
+    (needs ? '\u2693 ' : '\u2693 ') + 'Charter request \u00b7 ' + data.charterDate + ' \u00b7 ' +
+      block.split('\u00b7')[0].trim() + ' \u00b7 $' + (data.amountPaid || CONFIG.DEFAULT_BLOCK_PRICE),
+    html, data.primaryEmail || '');
+}
+
+/** Guest ack the moment they submit. Sets expectations, promises nothing. */
+function sendRequestAck_(data, bookingId) {
   if (!data.primaryEmail) return;
-  const block = CONFIG.TIME_BLOCKS[data.timeBlock] || data.timeBlock;
-  const needsCaptain = String(data.captainStatus).toLowerCase() === 'need';
-  const firstName = data.firstName || String(data.primaryName || '').split(' ')[0] || 'there';
+  var block = CONFIG.TIME_BLOCKS[data.timeBlock] || data.timeBlock;
+  var first = data.firstName || String(data.primaryName || '').split(' ')[0] || 'there';
+  sendHtml_(data.primaryEmail,
+    'We got your request for ' + CONFIG.BOAT_NAME + ' (' + bookingId + ')',
+    shell_(
+      '<p>Hi ' + esc_(first) + ',</p>' +
+      '<p>Your request is in and we are holding the slot while Luis takes a look.</p>' +
+      '<p><strong>' + esc_(data.charterDate) + ' &middot; ' + esc_(block) +
+        (data.partySize ? ' &middot; party of ' + esc_(data.partySize) : '') + '</strong><br>' +
+        '<span style="color:#5f6b53">$' + esc_(data.amountPaid || CONFIG.DEFAULT_BLOCK_PRICE) +
+        ' for the boat. Captain and fuel are billed separately.</span></p>' +
+      '<p>You will hear back within a day, usually much sooner. Nothing is charged yet, and there is ' +
+        'nothing for you to do until Luis confirms.</p>' +
+      '<p>Just reply to this email if anything changes.</p>' +
+      '<p>&mdash; ' + CONFIG.BUSINESS_NAME + '<br>' +
+        '<span style="color:#888;font-size:12px">Request ' + bookingId + '</span></p>'),
+    CONFIG.OWNER_EMAIL);
+}
 
-  // Prefilled JotForm links so each form knows which booking it belongs to (+ the
-  // Stripe amount for the agreement). Hidden JotForm fields must be named:
-  // bookingId, name, email, amount.
-  const amount = data.amountPaid || CONFIG.DEFAULT_BLOCK_PRICE;
-  const enc = encodeURIComponent;
-  const agreementUrl = CONFIG.LINK_AGREEMENT + '?bookingId=' + enc(bookingId) +
-    '&name=' + enc(data.primaryName || '') + '&email=' + enc(data.primaryEmail || '') + '&amount=' + enc(amount);
-  const waiverUrl = CONFIG.LINK_WAIVER + '?bookingId=' + enc(bookingId);
+/**
+ * Luis said yes. Luis's onboarding email (bareboat/demise model), rebuilt for the
+ * offer flow: no payment link (he invoices), no waiver chase (they sign at the dock).
+ */
+function sendAcceptedEmail_(b, bookingId) {
+  if (!b.PrimaryEmail) return;
+  var needsCaptain = String(b.CaptainStatus).toLowerCase() === 'need';
+  var firstName = String(b.PrimaryName || '').split(' ')[0] || 'there';
+  var amount = b.AmountPaid || CONFIG.DEFAULT_BLOCK_PRICE;
 
-  const captainPara = needsCaptain
-    ? 'We don’t expect you to have a captain in your back pocket, so we maintain a roster of independent captains familiar with the boat. I’ve reached out to that full list already to see who is available, and I’ll follow up again if we don’t hear back soon. We’ll have someone confirmed for you, no worries on that front. You’re also welcome to bring your own qualified captain.'
-    : 'You let us know you’re bringing your own qualified captain — perfect. Please send their credentials over so we can confirm them. If anything changes, we keep a roster of independent captains familiar with the boat and can help.';
+  var captainPara = needsCaptain
+    ? 'We do not expect you to have a captain in your back pocket, so we maintain a roster of independent captains familiar with the boat. Luis has reached out to that list already and will confirm someone for you. You are also welcome to bring your own qualified captain.'
+    : 'You let us know you are bringing your own qualified captain, perfect. Please send their credentials over so we can confirm them. If anything changes, we keep a roster of independent captains familiar with the boat and can help.';
 
-  const html =
-    '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#1a1a1a;max-width:600px">' +
-    '<p>Hi ' + esc_(firstName) + ',</p>' +
-    '<p>You’re locked in for the charter aboard <strong>' + CONFIG.BOAT_NAME + '</strong> — we appreciate you booking with us. ' +
-    'This email should cover everything you need before boarding.</p>' +
-    '<p><strong>Your charter:</strong> ' + esc_(data.charterDate) + ' &middot; ' + esc_(block) +
-    (data.partySize ? ' &middot; party of ' + esc_(data.partySize) : '') + '</p>' +
-    '<p>We operate under a <strong>bareboat/demise charter model</strong>. This means the vessel is legally released to you, as if it were yours for the trip. Because you take operational control, things like captains, fuel, food, and drinks are yours to arrange.</p>' +
-    '<p>' + captainPara + '</p>' +
-    '<p>The expected rate for a captain is between <strong>$' + CONFIG.CAPTAIN_RATE_LOW + '/hr and $' + CONFIG.CAPTAIN_RATE_HIGH + '/hr</strong> depending on the weekend and demand for that captain.</p>' +
-    '<p>Fuel works the same way: you can top off on the way back in, or we invoice a <strong>flat $' + CONFIG.FUEL_FLAT_RATE + '</strong> after the trip, wherever you go. Most guests prefer to have us invoice it for simplicity and to keep that extra time on the water.</p>' +
-    '<p>We believe these are the easiest and most legally compliant interpretations of the law. Other operators may interpret some of these regulations differently, though we all share the same rigorous compliance with USCG vessel safety standards.</p>' +
-    '<p>Please fill out the <strong>Charter Agreement</strong>, and have all of your other guests fill out the <strong>Guest Waiver</strong>:</p>' +
-    '<ul>' +
-    '<li>Charter Agreement <span style="color:#5f6b53">(includes your $' + amount + ' charter payment)</span> &rarr; <a href="' + agreementUrl + '">sign &amp; pay</a></li>' +
-    '<li>Guest Waiver <span style="color:#5f6b53">(each guest signs)</span> &rarr; <a href="' + waiverUrl + '">open waiver</a></li>' +
-    '</ul>' +
-    '<p>The boat is located at <strong>' + CONFIG.DOCK_LOCATION + '</strong>. Her name is <strong>' + CONFIG.BOAT_NAME + '</strong>. ' +
-    'Directions to the right spot &rarr; <a href="' + CONFIG.LINK_DIRECTIONS + '">' + CONFIG.LINK_DIRECTIONS.replace(/^https?:\/\//, '') + '</a></p>' +
-    '<p>Charter captains list &rarr; <a href="' + CONFIG.LINK_CAPTAINS + '">view the roster</a></p>' +
-    '<p>Have fun and stay hydrated!</p>' +
-    '<p>— ' + CONFIG.BUSINESS_NAME + '<br><span style="color:#888;font-size:12px">Booking ' + bookingId + '</span></p>' +
-    '</div>';
+  // Only surface an agreement link once the payment-free version of the form exists.
+  var agreementBlock = CONFIG.LINK_AGREEMENT_NOPAY
+    ? '<p>One thing to do before the trip: sign the <strong>Charter Agreement</strong>. No payment on it, ' +
+      'that comes on your invoice.<br><a href="' + CONFIG.LINK_AGREEMENT_NOPAY + '?bookingId=' +
+      encodeURIComponent(bookingId) + '&name=' + encodeURIComponent(b.PrimaryName || '') +
+      '&email=' + encodeURIComponent(b.PrimaryEmail || '') + '">Open the charter agreement</a></p>'
+    : '';
 
-  GmailApp.sendEmail(data.primaryEmail,
-    'You’re locked in — your ' + CONFIG.BOAT_NAME + ' charter (' + bookingId + ')',
-    htmlToText_(html),                       // plain-text fallback
-    { htmlBody: html, name: CONFIG.BUSINESS_NAME });
+  sendHtml_(b.PrimaryEmail,
+    'Confirmed, you are on the water (' + bookingId + ')',
+    shell_(
+      '<p>Hi ' + esc_(firstName) + ',</p>' +
+      '<p>Luis confirmed it. You are locked in aboard <strong>' + CONFIG.BOAT_NAME + '</strong>.</p>' +
+      '<p><strong>Your charter:</strong> ' + esc_(b.CharterDate) + ' &middot; ' + esc_(b.TimeBlock) +
+        (b.PartySize ? ' &middot; party of ' + esc_(b.PartySize) : '') + '</p>' +
+      '<p>We operate under a <strong>bareboat / demise charter model</strong>. The vessel is legally released ' +
+        'to you, as if it were yours for the trip. Because you take operational control, things like captains, ' +
+        'fuel, food and drinks are yours to arrange.</p>' +
+      '<p>' + captainPara + '</p>' +
+      '<p>The expected rate for a captain is between <strong>$' + CONFIG.CAPTAIN_RATE_LOW + '/hr and $' +
+        CONFIG.CAPTAIN_RATE_HIGH + '/hr</strong> depending on the weekend and demand for that captain.</p>' +
+      '<p>Fuel works the same way: you can top off on the way back in, or we invoice a <strong>flat $' +
+        CONFIG.FUEL_FLAT_RATE + '</strong> after the trip, wherever you go. Most guests prefer to have us ' +
+        'invoice it, for simplicity and to keep that extra time on the water.</p>' +
+      '<p><strong>Payment:</strong> Luis will send you an invoice for the <strong>$' + esc_(amount) +
+        '</strong> charter. Nothing to do right now.</p>' +
+      agreementBlock +
+      '<p><strong>Waivers:</strong> every guest signs one, and we handle it right at the dock before you board. ' +
+        'Please arrive about 15 minutes early so it is quick.</p>' +
+      '<p>The boat is at <strong>' + CONFIG.DOCK_LOCATION + '</strong>. Her name is <strong>' +
+        CONFIG.BOAT_NAME + '</strong>.<br>Directions to the right spot: <a href="' + CONFIG.LINK_DIRECTIONS +
+        '">' + CONFIG.LINK_DIRECTIONS.replace(/^https?:\/\//, '') + '</a></p>' +
+      '<p>Charter captains list: <a href="' + CONFIG.LINK_CAPTAINS + '">view the roster</a></p>' +
+      '<p>Have fun and stay hydrated!</p>' +
+      '<p>&mdash; ' + CONFIG.BUSINESS_NAME + '<br>' +
+        '<span style="color:#888;font-size:12px">Booking ' + bookingId + '</span></p>'),
+    CONFIG.OWNER_EMAIL);
+}
+
+/** What Luis gets right after accepting, so the invoice job is sitting in his inbox. */
+function sendAcceptedReceiptToLuis_(b, bookingId, folderUrl) {
+  var waiverUrl = CONFIG.LINK_WAIVER + '?bookingId=' + encodeURIComponent(bookingId);
+  sendHtml_(CONFIG.OWNER_EMAIL,
+    '\u2705 Accepted \u00b7 ' + b.CharterDate + ' \u00b7 ' + b.PrimaryName + ' \u00b7 invoice $' + b.AmountPaid,
+    shell_(
+      '<h2 style="margin:0 0 14px;font-size:20px">Confirmed. Two things left.</h2>' +
+      '<p class="box" style="background:#fff;border:1px solid #e5e0d4;border-radius:12px;padding:14px">' +
+        '<strong>1. Invoice $' + esc_(b.AmountPaid || '') + '</strong><br>' + esc_(b.PrimaryEmail || '') +
+        '<br><a href="' + CONFIG.STRIPE_INVOICE_URL + '">Create it in Stripe &rarr;</a><br>' +
+        '<span style="color:#5f6b53;font-size:13px">Mark the Paid column in the Bookings sheet once it clears.</span></p>' +
+      '<p class="box" style="background:#fff;border:1px solid #e5e0d4;border-radius:12px;padding:14px">' +
+        '<strong>2. Waivers at the dock</strong><br>' +
+        '<a href="' + waiverUrl + '">Open this booking\u2019s waiver &rarr;</a><br>' +
+        '<span style="color:#5f6b53;font-size:13px">Already tagged to ' + bookingId +
+        '. Pull it up on a phone and pass it around, or show the QR card.</span></p>' +
+      '<p>' + esc_(b.CharterDate) + ' &middot; ' + esc_(b.TimeBlock) + ' &middot; party of ' +
+        esc_(b.PartySize || '?') + ' &middot; captain ' +
+        (String(b.CaptainStatus).toLowerCase() === 'need' ? '<strong>NEEDED</strong>' : 'theirs') + '</p>' +
+      (folderUrl ? '<p><a href="' + folderUrl + '">Charter folder</a></p>' : '') +
+      '<p style="color:#999;font-size:12px">Booking ' + bookingId + '</p>'),
+    b.PrimaryEmail || '');
+}
+
+/** Luis passed. Keep the door open. */
+function sendDeclinedEmail_(b, bookingId) {
+  if (!b.PrimaryEmail) return;
+  sendHtml_(b.PrimaryEmail,
+    'About your ' + CONFIG.BOAT_NAME + ' request (' + bookingId + ')',
+    shell_(
+      '<p>Hi ' + esc_(String(b.PrimaryName || '').split(' ')[0] || 'there') + ',</p>' +
+      '<p>Sorry, we cannot take ' + esc_(b.CharterDate) + ' &middot; ' + esc_(b.TimeBlock) +
+        '. Nothing has been charged.</p>' +
+      '<p>Other dates are likely wide open, so it is worth another look: ' +
+        '<a href="https://la-lancha.com/book">check availability</a>. Or just reply here and Luis will ' +
+        'find you something that works.</p>' +
+      '<p>&mdash; ' + CONFIG.BUSINESS_NAME + '</p>'),
+    CONFIG.OWNER_EMAIL);
+}
+
+/** Hold ran out before Luis answered. Same tone, different reason. */
+function sendExpiredEmail_(b) {
+  if (!b.PrimaryEmail) return;
+  sendHtml_(b.PrimaryEmail,
+    'Your ' + CONFIG.BOAT_NAME + ' request (' + b.BookingID + ')',
+    shell_(
+      '<p>Hi ' + esc_(String(b.PrimaryName || '').split(' ')[0] || 'there') + ',</p>' +
+      '<p>We were not able to lock in ' + esc_(b.CharterDate) + ' &middot; ' + esc_(b.TimeBlock) +
+        ' in time, so we have released the hold. Nothing has been charged.</p>' +
+      '<p>Reply to this email and Luis will sort it out personally, or ' +
+        '<a href="https://la-lancha.com/book">pick another date</a>.</p>' +
+      '<p>&mdash; ' + CONFIG.BUSINESS_NAME + '</p>'),
+    CONFIG.OWNER_EMAIL);
 }
 
 function esc_(s) {
@@ -718,19 +1098,15 @@ function esc_(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 function htmlToText_(html) {
-  return html.replace(/<\/(p|li|ul|div)>/g, '\n').replace(/<li>/g, ' - ')
+  return html.replace(/<\/(p|li|ul|div|h1|h2|h3|tr|table)>/g, '\n')
+             .replace(/<\/t[dh]>/g, '  ')          // keep table cells apart
+             .replace(/<li>/g, ' - ')
+             .replace(/<a [^>]*href="([^"]+)"[^>]*>([^<]*)<\/a>/g, '$2 <$1>')
              .replace(/<br\s*\/?>/g, '\n').replace(/<[^>]+>/g, '')
-             .replace(/&rarr;/g, '->').replace(/&middot;/g, '-').replace(/&amp;/g, '&')
-             .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\n{3,}/g, '\n\n').trim();
-}
-
-function pingCaptainNeeded_(data, bookingId) {
-  GmailApp.sendEmail(CONFIG.OWNER_EMAIL,
-    '⚓ CAPTAIN NEEDED — ' + data.charterDate + ' ' + (CONFIG.TIME_BLOCKS[data.timeBlock] || data.timeBlock),
-    'Booking ' + bookingId + ' needs a captain.\n\n' +
-    'Guest: ' + data.primaryName + ' (' + data.primaryEmail + ')\n' +
-    'Date: ' + data.charterDate + '\nBlock: ' + (CONFIG.TIME_BLOCKS[data.timeBlock] || data.timeBlock) +
-    '\nParty: ' + (data.partySize || '') + '\n\nAssign a captain and update the Bookings sheet.');
+             .replace(/&rarr;/g, '->').replace(/&mdash;/g, '--').replace(/&middot;/g, '-')
+             .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+             .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+             .replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 function copyTemplatesInto_(folder) {
@@ -770,34 +1146,67 @@ function getAvailability_(dateStr) {
   });
   return out;
 }
-/** Create the confirmed charter event (guest invited). Returns event id. */
-function createCalendarEvent_(data, bookingId, folderUrl) {
+/**
+ * Create the charter event. Returns event id.
+ *   pending = true  -> pencilled-in hold. Titled REQUEST, guest NOT invited (an
+ *                      invite would land in their inbox looking like a yes).
+ *   pending = false -> confirmed charter, guest invited.
+ */
+function createCalendarEvent_(data, bookingId, folderUrl, pending) {
   var cal = calendar_();
   var win = blockWindow_(data.charterDate, data.timeBlock);
   if (!cal || !win) return '';
-  var needs = String(data.captainStatus).toLowerCase() === 'need';
-  var title = CONFIG.BOAT_NAME + ' Charter — ' + (data.primaryName || 'Guest') + ' (' + bookingId + ')';
-  var desc = 'Party of ' + (data.partySize || '?') + '\n' +
-             'Contact: ' + (data.primaryName || '') + ' · ' + (data.primaryEmail || '') + ' · ' + (data.phone || '') + '\n' +
-             'Captain: ' + (needs ? 'NEEDED — assign one' : 'guest bringing own') + '\n' +
-             (data.addOns ? 'Add-ons: ' + data.addOns + '\n' : '') +
-             (folderUrl ? 'Folder: ' + folderUrl + '\n' : '') + 'Booking ' + bookingId;
-  var ev = cal.createEvent(title, win.start, win.end,
-    { description: desc, location: CONFIG.DOCK_LOCATION, guests: data.primaryEmail || '', sendInvites: true });
+  var ev = cal.createEvent(
+    eventTitle_(data, bookingId, pending), win.start, win.end,
+    {
+      description: eventDesc_(data, bookingId, folderUrl, pending),
+      location: CONFIG.DOCK_LOCATION,
+      guests: pending ? '' : (data.primaryEmail || ''),
+      sendInvites: !pending
+    });
   return ev.getId();
 }
-function notifyLuisNewBooking_(data, bookingId, folderUrl) {
-  var needs = String(data.captainStatus).toLowerCase() === 'need';
-  var block = CONFIG.TIME_BLOCKS[data.timeBlock] || data.timeBlock;
-  GmailApp.sendEmail(CONFIG.OWNER_EMAIL,
-    (needs ? '⚓ NEW BOOKING — captain needed' : '✅ NEW BOOKING') + ' · ' + data.charterDate + ' · ' + block,
-    'New confirmed charter aboard ' + CONFIG.BOAT_NAME + '.\n\n' +
-    'Booking: ' + bookingId + '\nGuest: ' + (data.primaryName || '') + ' (' + (data.primaryEmail || '') + ', ' + (data.phone || '') + ')\n' +
-    'Date: ' + data.charterDate + '\nBlock: ' + block + '\nParty: ' + (data.partySize || '') + '\n' +
-    'Captain: ' + (needs ? 'NEEDED — assign one from the roster' : 'guest bringing their own') + '\n' +
-    (data.addOns ? 'Add-ons: ' + data.addOns + '\n' : '') +
-    '\nIt\'s on the "' + CONFIG.CALENDAR_NAME + '" calendar. To cancel/decline, delete that event — the slot reopens automatically.\n' +
-    (folderUrl ? '\nFolder: ' + folderUrl : ''));
+
+function eventTitle_(data, bookingId, pending) {
+  return (pending ? '\u23f3 REQUEST \u2014 ' : '') + CONFIG.BOAT_NAME + ' Charter \u2014 ' +
+         (data.primaryName || data.PrimaryName || 'Guest') + ' (' + bookingId + ')';
+}
+function eventDesc_(data, bookingId, folderUrl, pending) {
+  var needs = String(data.captainStatus || data.CaptainStatus).toLowerCase() === 'need';
+  var name  = data.primaryName  || data.PrimaryName  || '';
+  var email = data.primaryEmail || data.PrimaryEmail || '';
+  var price = data.amountPaid   || data.AmountPaid   || '';
+  return (pending ? 'NOT CONFIRMED YET \u2014 holding this slot while you decide.\n' +
+                    'Accept:  ' + actionUrl_('accept', bookingId) + '\n' +
+                    'Decline: ' + actionUrl_('decline', bookingId) + '\n\n' : '') +
+         'Party of ' + (data.partySize || data.PartySize || '?') + '\n' +
+         'Contact: ' + name + ' \u00b7 ' + email + ' \u00b7 ' + (data.phone || data.Phone || '') + '\n' +
+         'Quoted: $' + price + '\n' +
+         'Captain: ' + (needs ? 'NEEDED \u2014 assign one' : 'guest bringing own') + '\n' +
+         ((data.addOns || data.AddOns) ? 'Add-ons: ' + (data.addOns || data.AddOns) + '\n' : '') +
+         (folderUrl ? 'Folder: ' + folderUrl + '\n' : '') + 'Booking ' + bookingId;
+}
+
+/** Promote a pencilled-in hold to a confirmed charter and invite the guest. */
+function confirmCalendarEvent_(b, folderUrl) {
+  var cal = calendar_();
+  if (!cal) return;
+  var ev = b.EventId ? cal.getEventById(b.EventId) : null;
+  if (!ev) {   // hold went missing (deleted by hand) — recreate it confirmed
+    createCalendarEvent_(b, b.BookingID, folderUrl, false);
+    return;
+  }
+  ev.setTitle(eventTitle_(b, b.BookingID, false));
+  ev.setDescription(eventDesc_(b, b.BookingID, folderUrl, false));
+  if (b.PrimaryEmail) ev.addGuest(b.PrimaryEmail);
+}
+
+/** Delete the pencilled-in event so the slot reopens. */
+function releaseHold_(b) {
+  var cal = calendar_();
+  if (!cal || !b.EventId) return;
+  try { var ev = cal.getEventById(b.EventId); if (ev) ev.deleteEvent(); }
+  catch (err) { Logger.log('releaseHold_ ' + b.BookingID + ': ' + err); }
 }
 
 // --- post-charter reviews ---
@@ -853,23 +1262,24 @@ function reconcileJotform() {
   try { reconcileWaivers_();  } catch (e) { Logger.log('Waiver reconcile error: ' + e); }
 }
 
+/**
+ * Stamps AgreementSigned only. It no longer touches Status or Paid: Luis owns
+ * both now (he accepts the charter, and he invoices), so writing them here
+ * would fight the offer flow and overwrite his own bookkeeping.
+ */
 function reconcileAgreement_() {
-  var sh = SpreadsheetApp.openById(CONFIG.AGREEMENT_SHEET_ID).getSheets()[0];
+  var sheetId = CONFIG.AGREEMENT_NOPAY_SHEET_ID || CONFIG.AGREEMENT_SHEET_ID;
+  if (!sheetId) return;
+  var sh = SpreadsheetApp.openById(sheetId).getSheets()[0];
   var v = sh.getDataRange().getValues();
   if (v.length < 2) return;
-  var hdr = v[0];
-  var cBooking = findCol_(hdr, ['booking']);
-  var cAmount = findAmountCol_(hdr);
-  Logger.log('AGREEMENT cols -> bookingId=' + cBooking + ' amount=' + cAmount + ' (' + JSON.stringify(hdr) + ')');
-  var key = 'CURSOR_' + CONFIG.AGREEMENT_SHEET_ID;                    // cursor keyed by sheet id
+  var cBooking = findCol_(v[0], ['booking']);
+  if (cBooking < 0) { Logger.log('AGREEMENT: no bookingId column in ' + JSON.stringify(v[0])); return; }
+  var key = 'CURSOR_' + sheetId;                                      // cursor keyed by sheet id
   var start = Number(PROPS.getProperty(key) || 1);
   for (var i = Math.max(start, 1); i < v.length; i++) {
-    var bId = cBooking >= 0 ? String(v[i][cBooking]).trim() : '';
-    if (!bId) continue;
-    var paid = cAmount >= 0 ? parseAmount_(v[i][cAmount]) : '';
-    var fields = { AgreementSigned: now_(), Status: 'Confirmed' };
-    if (paid !== '') fields.Paid = '$' + paid;
-    if (updateBooking_(bId, fields) && paid !== '') verifyAmount_(bId, Number(paid));
+    var bId = String(v[i][cBooking]).trim();
+    if (bId) updateBooking_(bId, { AgreementSigned: now_() });
   }
   PROPS.setProperty(key, String(v.length));
 }
@@ -895,39 +1305,12 @@ function reconcileWaivers_() {
   PROPS.setProperty(key, String(v.length));
 }
 
-/** Alert Luis if the amount paid doesn't match the booking's expected price. */
-function verifyAmount_(bookingId, paid) {
-  var sh = openSS_().getSheetByName('Bookings');
-  var rows = sh.getDataRange().getValues();
-  var H = HEADERS.Bookings;
-  for (var r = 1; r < rows.length; r++) {
-    if (rows[r][H.indexOf('BookingID')] === bookingId) {
-      var expected = Number(rows[r][H.indexOf('AmountPaid')]) || 0;
-      if (expected && Math.abs(expected - paid) > 0.5) {
-        GmailApp.sendEmail(CONFIG.OWNER_EMAIL, '⚠️ Payment mismatch — ' + bookingId,
-          'Booking ' + bookingId + ' should be $' + expected + ' but the agreement was paid $' + paid +
-          '. Check the submission before the charter.');
-      }
-      return;
-    }
-  }
-}
-
 function findCol_(hdr, keywords) {
   for (var k = 0; k < keywords.length; k++)
     for (var c = 0; c < hdr.length; c++)
       if (String(hdr[c]).toLowerCase().indexOf(keywords[k]) >= 0) return c;
   return -1;
 }
-function findAmountCol_(hdr) {
-  for (var c = 0; c < hdr.length; c++) if (String(hdr[c]).toLowerCase().indexOf('product') >= 0) return c;
-  for (var c = 0; c < hdr.length; c++) {
-    var h = String(hdr[c]).toLowerCase();
-    if ((h.indexOf('amount') >= 0 || h.indexOf('total') >= 0) && h.indexOf('payer') < 0) return c;
-  }
-  return -1;
-}
-function parseAmount_(val) { var m = String(val).replace(/,/g, '').match(/(\d+(\.\d+)?)/); return m ? Number(m[1]) : ''; }
 
 // --- generic Drive / Sheet / Form utilities ---
 function getOrCreateFolder_(parent, name) {
@@ -984,14 +1367,104 @@ function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
+// ====================== ACCEPT / DECLINE LINKS =============================
+/**
+ * doGet is a PUBLIC endpoint, so accept/decline URLs carry an HMAC token.
+ * Without it anyone could confirm or kill Luis's charters by guessing an ID.
+ * The secret lives in Script Properties and is minted once, on first use.
+ */
+function secret_() {
+  var s = PROPS.getProperty('ACTION_SECRET');
+  if (!s) { s = Utilities.getUuid() + Utilities.getUuid(); PROPS.setProperty('ACTION_SECRET', s); }
+  return s;
+}
+function token_(action, bookingId) {
+  var raw = Utilities.computeHmacSha256Signature(action + '|' + bookingId, secret_());
+  return Utilities.base64EncodeWebSafe(raw).replace(/=+$/, '').slice(0, 24);
+}
+function tokenOk_(action, bookingId, t) {
+  var want = token_(action, bookingId);
+  if (!t || String(t).length !== want.length) return false;
+  var diff = 0;                                   // length-constant compare
+  for (var i = 0; i < want.length; i++) diff |= want.charCodeAt(i) ^ String(t).charCodeAt(i);
+  return diff === 0;
+}
+/** The tap-me URL Luis gets in email. */
+function actionUrl_(action, bookingId) {
+  return webAppUrl_() + '?action=' + action + '&id=' + encodeURIComponent(bookingId) +
+         '&t=' + encodeURIComponent(token_(action, bookingId));
+}
+/**
+ * Base URL of the deployed web app. ScriptApp.getService().getUrl() returns the
+ * /dev URL in some contexts, so a WEBAPP_URL script property wins if it is set.
+ */
+function webAppUrl_() {
+  return PROPS.getProperty('WEBAPP_URL') || ScriptApp.getService().getUrl();
+}
+/** Run once after deploying to pin the /exec URL used in emails. */
+function setWebAppUrl(url) {
+  PROPS.setProperty('WEBAPP_URL', url || ScriptApp.getService().getUrl());
+  Logger.log('WEBAPP_URL = ' + webAppUrl_());
+}
+
+function handleDecision_(e, action) {
+  var id = e.parameter.id, t = e.parameter.t;
+  if (!tokenOk_(action, id, t)) {
+    return htmlPage_('Link not valid',
+      'That accept/decline link is not valid. Open the Bookings sheet and set the Status there instead.');
+  }
+  var out = action === 'accept' ? acceptRequest(id) : declineRequest(id, 'Declined by Luis');
+  var b = out.booking || findBooking_(id) || {};
+  var when = (b.CharterDate || '') + ' \u00b7 ' + (b.TimeBlock || '');
+
+  if (!out.ok && out.error === 'not_found')       return htmlPage_('Not found', 'No booking ' + esc_(id) + '.');
+  if (!out.ok && out.error === 'already_accepted') return htmlPage_('Already accepted', esc_(when) + ' is already confirmed.');
+  if (!out.ok && out.error === 'slot_released')   return htmlPage_('Already released', 'That request was already declined or expired, and the slot is open again.');
+  if (!out.ok)                                    return htmlPage_('Something went wrong', esc_(String(out.error || '')));
+
+  if (action === 'decline') {
+    return htmlPage_('Declined', '<p><strong>' + esc_(when) + '</strong> \u2014 ' + esc_(b.PrimaryName || '') +
+      '</p><p>They have been let down gently and the slot is open again.</p>');
+  }
+  return htmlPage_(out.already ? 'Already accepted' : 'Accepted \u2014 nice one',
+    '<p><strong>' + esc_(when) + '</strong> \u2014 ' + esc_(b.PrimaryName || '') +
+    ' \u00b7 party of ' + esc_(b.PartySize || '?') + '</p>' +
+    '<p>They have their confirmation. It is on the calendar and they are invited.</p>' +
+    '<p class="box"><strong>Now invoice them $' + esc_(b.AmountPaid || '') + '</strong><br>' +
+    esc_(b.PrimaryEmail || '') + '<br>' +
+    '<a href="' + CONFIG.STRIPE_INVOICE_URL + '">Create the invoice in Stripe \u2192</a></p>' +
+    '<p style="color:#5f6b53">Waivers get signed at the dock. Booking ' + esc_(b.BookingID || id) + '</p>');
+}
+
+function htmlPage_(title, bodyHtml) {
+  return HtmlService.createHtmlOutput(
+    '<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<style>body{font-family:-apple-system,Arial,sans-serif;margin:0;padding:34px 22px;' +
+    'background:#fdfbf6;color:#1a1a1a;line-height:1.55}h1{font-size:24px;margin:0 0 14px}' +
+    'p{margin:0 0 12px;font-size:16px}.box{background:#fff;border:1px solid #e5e0d4;' +
+    'border-radius:12px;padding:14px}a{color:#c2185b}</style>' +
+    '<h1>' + title + '</h1>' + bodyHtml)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setTitle(CONFIG.BUSINESS_NAME);
+}
+
 // ====================== QUICK TEST =========================================
-/** Run this after setup to create a fake booking end-to-end. */
-function _testBooking() {
-  Logger.log(createBooking({
+/**
+ * Run after setup. Creates a fake REQUEST so you get the offer email with real
+ * Accept / Decline buttons, exactly as Luis will see it. Tap one to test the
+ * rest of the flow, then delete the row and the calendar event.
+ */
+function _testRequest() {
+  var out = createRequest({
     charterDate: '2026-07-04', timeBlock: 'afternoon',
     primaryName: 'Test Guest', primaryEmail: CONFIG.OWNER_EMAIL, phone: '555-1234',
     partySize: 6, captainStatus: 'need', addOns: 'Water toys',
-    amountPaid: 1500, stripeRef: 'pi_test',
-    guests: [{ name: 'Friend Two', email: CONFIG.OWNER_EMAIL }]
-  }));
+    message: 'It is my brother’s 30th. Any chance of a slightly later return?',
+    amountPaid: CONFIG.DEFAULT_BLOCK_PRICE
+  });
+  Logger.log(out);
+  if (out.ok) {
+    Logger.log('Accept:  ' + actionUrl_('accept', out.bookingId));
+    Logger.log('Decline: ' + actionUrl_('decline', out.bookingId));
+  }
 }
