@@ -26,17 +26,10 @@ export interface CrewGroup {
 
 export const crewGroups: CrewGroup[] = [
   {
-    role: 'Deck Hand',
-    plural: 'Deck Hands',
-    blurb: 'The extra set of hands that keeps your day running smooth.',
-    members: [
-      // { slug: 'first-last', name: 'First Last', photo: 'deckhand-1', blurb: 'Knot expert and cooler captain.' },
-    ],
-  },
-  {
-    role: 'Dock Attendant',
-    plural: 'Dock Attendants',
-    blurb: 'Your first hello and last wave at Diversey Harbor.',
+    // Dock + deck merged into one role (Luis's call).
+    role: 'Deckhand',
+    plural: 'Deckhands',
+    blurb: 'The crew who keep every charter running, dock to deck.',
     members: [
       {
         slug: 'evan',
