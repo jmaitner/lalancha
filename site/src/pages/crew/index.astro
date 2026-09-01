@@ -1,11 +1,15 @@
 ---
-import Base from '../layouts/Base.astro';
-import { captains } from '../captains.ts';
-import { crewGroups } from '../crew.ts';
+import Base from '../../layouts/Base.astro';
+import { captainPeople, crewPeople, type Person } from '../../people.ts';
 
 const title = 'Our Crew · Captains, Deck Hands & Dock Attendants | lancha boat';
 const description =
   'Meet the crew behind Quarters: USCG-licensed captains, plus the deck hands and dock attendants who keep your private Chicago boat charter running smooth.';
+
+const firstSrc = (p: Person): string | undefined => {
+  const first = p.photos[0];
+  return typeof first === 'string' ? first : first?.src;
+};
 ---
 <Base title={title} description={description}>
 
@@ -14,25 +18,27 @@ const description =
     <p class="kicker">ABOARD QUARTERS</p>
     <h1>Meet the <span class="scr">crew</span></h1>
     <p class="lede">The people who make your day on the water easy: licensed captains who keep you safe,
-      plus the deck hands and dock attendants who keep everything running.</p>
+      plus the deck hands and dock attendants who make everything go.</p>
   </section>
 
   <!-- CAPTAINS -->
   <section class="wrap crew-sec">
     <div class="sec-top">
       <h2 class="sec-head">Captains</h2>
-      <p class="sec-blurb">USCG-licensed and ready at the helm.</p>
+      <p class="sec-blurb">USCG-licensed, at the helm.</p>
     </div>
     <div class="crew-grid">
-      {captains.map((c) => (
-        <a class="crew-card" href={`/captains/${c.slug}`}>
+      {captainPeople.map((p) => (
+        <a class="crew-card" href={`/crew/${p.slug}`}>
           <div class="crew-photo">
-            <img src={`/images/${typeof c.photos[0] === 'string' ? c.photos[0] : c.photos[0].src}.jpg`} alt={c.handle} loading="lazy" />
-            <span class="role-pill">Captain</span>
+            {firstSrc(p)
+              ? <img src={`/images/${firstSrc(p)}.jpg`} alt={p.cardName} loading="lazy" />
+              : <div class="photo-ph" aria-hidden="true"><span>{p.name.charAt(0)}</span></div>}
+            <span class="role-pill">{p.role}</span>
           </div>
           <div class="crew-body">
-            <h3>{c.handle}</h3>
-            <p class="crew-tagline">{c.tagline}</p>
+            <h3>{p.cardName}</h3>
+            {p.tagline && <p class="crew-tagline">{p.tagline}</p>}
             <span class="crew-link">View profile →</span>
           </div>
         </a>
@@ -40,44 +46,37 @@ const description =
     </div>
   </section>
 
-  <!-- OTHER CREW ROLES -->
-  {crewGroups.map((g) => (
-    <section class="wrap crew-sec">
-      <div class="sec-top">
-        <h2 class="sec-head">{g.plural}</h2>
-        {g.blurb && <p class="sec-blurb">{g.blurb}</p>}
+  <!-- PAGE BREAK between captains and everyone else -->
+  <div class="wrap"><hr class="crew-break" /></div>
+
+  <!-- EVERYONE ELSE -->
+  <section class="wrap crew-sec">
+    <div class="sec-top">
+      <h2 class="sec-head">The rest of the crew</h2>
+      <p class="sec-blurb">The deckhands and dock attendants who make it all go.</p>
+    </div>
+    {crewPeople.length > 0 ? (
+      <div class="crew-grid">
+        {crewPeople.map((p) => (
+          <a class="crew-card" href={`/crew/${p.slug}`}>
+            <div class="crew-photo">
+              {firstSrc(p)
+                ? <img src={`/images/${firstSrc(p)}.jpg`} alt={p.cardName} loading="lazy" />
+                : <div class="photo-ph" aria-hidden="true"><span>{p.name.charAt(0)}</span></div>}
+              <span class="role-pill">{p.role}</span>
+            </div>
+            <div class="crew-body">
+              <h3>{p.cardName}</h3>
+              {p.tagline && <p class="crew-tagline">{p.tagline}</p>}
+              <span class="crew-link">View profile →</span>
+            </div>
+          </a>
+        ))}
       </div>
-      {g.members.length > 0 ? (
-        <div class="member-list">
-          {g.members.map((m) => (
-            <article class="member-card">
-              <div class="member-photo">
-                {m.photo
-                  ? <img src={`/images/${m.photo}.jpg`} alt={m.name} loading="lazy" />
-                  : <div class="photo-ph" aria-hidden="true"><span>{m.name.charAt(0)}</span></div>}
-                <span class="role-pill">{g.role}</span>
-              </div>
-              <div class="member-info">
-                <h3>{m.name}</h3>
-                {m.bio
-                  ? <p class="member-bio">{m.bio}</p>
-                  : (m.blurb && <p class="member-bio">{m.blurb}</p>)}
-                {m.stats && m.stats.length > 0 && (
-                  <ul class="member-stats">
-                    {m.stats.map((s) => <li class="member-stat">{s}</li>)}
-                  </ul>
-                )}
-              </div>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <div class="crew-empty">
-          <p>We're adding {g.plural.toLowerCase()} to the crew. Check back soon.</p>
-        </div>
-      )}
-    </section>
-  ))}
+    ) : (
+      <div class="crew-empty"><p>We're adding more crew soon. Check back.</p></div>
+    )}
+  </section>
 
   <!-- CTA -->
   <section class="cta-band">
@@ -99,10 +98,13 @@ const description =
   .lede { font-size: 19px; max-width: 620px; margin: 0; }
 
   /* SECTION */
-  .crew-sec { margin-top: 52px; }
+  .crew-sec { margin-top: 48px; }
   .sec-top { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 22px; padding-bottom: 12px; border-bottom: 2px solid var(--ink); }
   .sec-head { font-size: clamp(26px, 4.5vw, 40px); font-weight: 800; margin: 0; }
   .sec-blurb { color: #8a8470; font-size: 15px; margin: 0; }
+
+  /* PAGE BREAK */
+  .crew-break { border: 0; border-top: 3px dashed var(--ink); margin: 60px 0 4px; opacity: .5; }
 
   /* GRID + CARDS */
   .crew-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 22px; }
@@ -112,7 +114,7 @@ const description =
   a.crew-card:hover { transform: translate(-2px, -2px); box-shadow: 7px 7px 0 var(--blue); }
 
   .crew-photo { position: relative; aspect-ratio: 4/5; overflow: hidden; border-bottom: 2px solid var(--ink); }
-  .crew-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .crew-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center top; display: block; }
   .photo-ph { position: absolute; inset: 0; display: grid; place-items: center; background: var(--blue); }
   .photo-ph span { font-family: var(--display); font-weight: 800; font-size: 64px; color: var(--cream); }
   .role-pill { position: absolute; top: 10px; left: 10px; background: var(--gold); border: 2px solid var(--ink);
@@ -124,28 +126,8 @@ const description =
   .crew-tagline { color: #6f6a58; font-size: 14px; line-height: 1.45; margin: 0; }
   .crew-link { margin-top: 6px; color: var(--blue); font-weight: 700; font-size: 14px; }
 
-  /* EMPTY ROLE PLACEHOLDER */
   .crew-empty { border: 2px dashed #c9c4ad; border-radius: 18px; padding: 28px; text-align: center; color: #8a8470; }
   .crew-empty p { margin: 0; font-size: 15px; }
-
-  /* MEMBER PROFILE CARDS (dock attendants, deck hands) */
-  .member-list { display: flex; flex-direction: column; gap: 20px; }
-  .member-card { display: grid; grid-template-columns: minmax(150px, 210px) 1fr; max-width: 720px;
-                 background: #fff; border: 2px solid var(--ink); border-radius: 18px;
-                 overflow: hidden; box-shadow: 4px 4px 0 var(--ink); }
-  .member-photo { position: relative; min-height: 230px; border-right: 2px solid var(--ink); }
-  .member-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
-  .member-info { padding: 20px 22px; }
-  .member-info h3 { font-family: var(--display); font-weight: 800; font-size: 24px; margin: 0 0 8px; }
-  .member-bio { font-size: 15px; line-height: 1.6; margin: 0 0 14px; }
-  .member-stats { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 7px; }
-  .member-stat { font-family: var(--display); font-weight: 700; font-size: 11px; letter-spacing: .01em;
-                 padding: 6px 11px; border: 2px solid var(--ink); border-radius: 999px; background: var(--cream); }
-
-  @media (max-width: 540px) {
-    .member-card { grid-template-columns: 1fr; }
-    .member-photo { aspect-ratio: 16/10; min-height: 0; border-right: 0; border-bottom: 2px solid var(--ink); }
-  }
 
   /* CTA BAND */
   .cta-band { background: var(--blue); color: var(--cream); padding: 60px 0; margin-top: 72px; text-align: center; }

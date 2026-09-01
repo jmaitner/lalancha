@@ -9,9 +9,10 @@
 // TO ADD A NEW ROLE: add another CrewGroup to the array below.
 
 export interface CrewMember {
+  slug: string;     // profile URL: /crew/<slug>
   name: string;
   photo?: string;   // /images filename, no extension (optional)
-  blurb?: string;   // short one-liner (optional)
+  blurb?: string;   // short one-liner for the crew-index card (optional)
   bio?: string;     // longer paragraph (optional)
   stats?: string[]; // stat / credential badges (optional)
 }
@@ -29,7 +30,7 @@ export const crewGroups: CrewGroup[] = [
     plural: 'Deck Hands',
     blurb: 'The extra set of hands that keeps your day running smooth.',
     members: [
-      // { name: 'First Last', photo: 'deckhand-1', blurb: 'Knot expert and cooler captain.' },
+      // { slug: 'first-last', name: 'First Last', photo: 'deckhand-1', blurb: 'Knot expert and cooler captain.' },
     ],
   },
   {
@@ -38,7 +39,9 @@ export const crewGroups: CrewGroup[] = [
     blurb: 'Your first hello and last wave at Diversey Harbor.',
     members: [
       {
+        slug: 'evan',
         name: 'Evan Richards',
+        blurb: "New to boats, and the first face you'll meet at the dock.",
         photo: 'evan-1',
         bio: "Evan is new to boats and an engineer by trade, and he's the friendly face you'll almost certainly meet at the dock before and after your charter, so say hi. He's learning a ton and taking on more and more responsibility, which is a nice way of saying he gets handed more and more. He's also open to a few shifts as a deck hand if you'd like him out on the water with you.",
         stats: ['Drivers License', 'Better at Hockey', 'First Aid', 'Stop the Bleed'],

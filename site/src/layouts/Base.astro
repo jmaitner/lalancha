@@ -1,5 +1,5 @@
 ---
-import { captains } from '../captains.ts';
+import { captainPeople } from '../people.ts';
 const {
   title = 'lancha boat · private charters aboard Quarters',
   description = 'Private boat charters on Lake Michigan aboard Quarters. Good times on water, chill with friends & fam, bring your own whatever. Based in Chicago at Diversey Harbor.',
@@ -44,8 +44,8 @@ const ogImage = image.startsWith('http') ? image : new URL(image, base).href;
         <div class="dropdown">
           <a class="dropbtn" href="/crew" aria-haspopup="true">Crew<span class="caret" aria-hidden="true">▾</span></a>
           <div class="dropdown-menu">
-            {captains.map((c) => (
-              <a href={`/captains/${c.slug}`}>{c.handle}</a>
+            {captainPeople.map((p) => (
+              <a href={`/crew/${p.slug}`}>{p.cardName}</a>
             ))}
             <a class="dropdown-all" href="/crew">All crew →</a>
           </div>

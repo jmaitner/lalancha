@@ -1,5 +1,5 @@
 // Single source of truth for captain profiles.
-// Each captain object generates a page at /captains/[slug].
+// Captains feed the /crew pages via people.ts; each gets a page at /crew/[slug].
 //
 // STATUS:
 //   - credentials .... REAL (from Luis, June 2026)
