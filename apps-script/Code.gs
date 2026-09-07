@@ -67,7 +67,7 @@ const CONFIG = {
   // so the pay-bundled form (LINK_AGREEMENT) must NOT go to guests. Until this clone
   // exists, the accepted-charter email simply omits the agreement link.
   LINK_AGREEMENT_NOPAY:     '',   // e.g. 'https://form.jotform.com/XXXXXXXXXXXXX'
-  AGREEMENT_NOPAY_SHEET_ID: '',   // its Google Sheet (reconcile reads this if set)
+  AGREEMENT_NOPAY_SHEET_ID: '1599oTyoNbFkgWnxp_o2LoaY3Q-P1cYKhIh3ybDzCXw0', // its Google Sheet
   STRIPE_INVOICE_URL: 'https://dashboard.stripe.com/invoices/create',
   // Automatic Stripe invoicing. OFF until a restricted API key is stored in
   // Script Properties as STRIPE_SECRET_KEY (Project Settings > Script Properties).
