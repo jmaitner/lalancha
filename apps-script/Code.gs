@@ -1555,11 +1555,28 @@ function stripeGet_(key, path) {
   return body;
 }
 
-/** Store the Stripe key. Run once from the editor, then CLEAR the argument. */
-function setStripeKey(key) {
-  if (!key) { PROPS.deleteProperty('STRIPE_SECRET_KEY'); Logger.log('Stripe key removed.'); return; }
+/**
+ * OPTIONAL. Turns on automatic Stripe invoicing.
+ *
+ * Paste a RESTRICTED key below, Run once, then DELETE it from this function and
+ * save again so the key is not left sitting in the source. It lives in Script
+ * Properties from then on. Leave the line blank and Run to switch invoicing back
+ * off and go back to billing by hand.
+ */
+function pinStripeKey() {
+  var key = '';   // <-- PASTE a restricted key (rk_live_...), Run, then clear this line
+
+  if (!key) {
+    PROPS.deleteProperty('STRIPE_SECRET_KEY');
+    Logger.log('No key set: automatic invoicing is OFF. Luis bills by hand.');
+    return;
+  }
+  if (key.indexOf('sk_') === 0) {
+    throw new Error('That is a SECRET key. Use a RESTRICTED key (rk_...) limited to ' +
+      'write access on Customers, Invoices and Invoice Items, so a leak cannot drain the account.');
+  }
   PROPS.setProperty('STRIPE_SECRET_KEY', key);
-  Logger.log('Stripe key stored. Now delete it from this function and save.');
+  Logger.log('Stripe key stored. Now DELETE it from pinStripeKey() and save.');
 }
 
 // ====================== ACCEPT / DECLINE LINKS =============================
@@ -1596,10 +1613,36 @@ function actionUrl_(action, bookingId) {
 function webAppUrl_() {
   return PROPS.getProperty('WEBAPP_URL') || ScriptApp.getService().getUrl();
 }
-/** Run once after deploying to pin the /exec URL used in emails. */
+/**
+ * STEP 2 OF SETUP. Paste the deployment's /exec URL below, save, then Run this.
+ *
+ * The editor's Run button cannot pass arguments, which is why the URL is pasted
+ * in rather than taken as a parameter. Getting this wrong means the Accept and
+ * Decline buttons in Luis's offer emails point at the wrong deployment, so the
+ * function refuses anything that is not a real /exec URL.
+ */
+function pinWebAppUrl() {
+  var url = '';   // <-- PASTE between the quotes: https://script.google.com/macros/s/AKfy.../exec
+
+  if (!url) {
+    Logger.log('Paste the /exec URL into pinWebAppUrl() first.\n' +
+      'Find it under Deploy > Manage deployments > the web app > Web app URL.');
+    return;
+  }
+  setWebAppUrl(url);
+}
+
+/** Pin the /exec URL used in Luis's accept/decline links. Called by pinWebAppUrl(). */
 function setWebAppUrl(url) {
-  PROPS.setProperty('WEBAPP_URL', url || ScriptApp.getService().getUrl());
+  url = String(url || '').trim();
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url)) {
+    throw new Error('That is not a deployment /exec URL: "' + url + '"\n' +
+      'It must look like https://script.google.com/macros/s/AKfy.../exec — a /dev URL ' +
+      'will not work for Luis, and a Manage-deployments page URL is not it either.');
+  }
+  PROPS.setProperty('WEBAPP_URL', url);
   Logger.log('WEBAPP_URL = ' + webAppUrl_());
+  Logger.log('Sample link: ' + actionUrl_('accept', 'LL-EXAMPLE-0000'));
 }
 
 function handleDecision_(e, action) {
