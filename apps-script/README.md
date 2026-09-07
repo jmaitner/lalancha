@@ -46,25 +46,26 @@ A hand-made sheet will look right and silently write data into the wrong columns
 3. **Deploy ▸ New deployment ▸ Web app.** Execute as **me**, access
    **Anyone**. Copy the `/exec` URL.
 
-4. **Paste that URL into `pinWebAppUrl()`, save, Run.** Skipping this is the
-   classic failure: Luis's Accept and Decline buttons point at a stale
-   deployment and silently do nothing. The function rejects anything that is not
-   a real `/exec` URL and logs a sample link so you can eyeball it.
+4. **Only if that URL is new:** update `CONFIG.WEBAPP_EXEC_URL` in `Code.gs`
+   and `ENDPOINT` in `site/src/config.ts` to match. Updating an existing
+   deployment keeps the same URL, so normally there is nothing to do here.
 
-5. **Point the site at the same URL.** `ENDPOINT` in `site/src/config.ts`. A
-   *new* deployment means a new URL; redeploying an existing one keeps it.
+   `WEBAPP_EXEC_URL` is what Luis's Accept and Decline buttons point at. If it
+   is ever wrong the buttons fail *silently, and only for other people* — as the
+   script owner your own tests still pass — which is why `checkSetup()` in step
+   5 checks it every time rather than trusting a one-off verification.
 
-6. **Run `checkSetup()`.** One line per thing that has to be wired, and it
+5. **Run `checkSetup()`.** One line per thing that has to be wired, and it
    prints the actual link Luis would receive. Fix anything marked ❌.
 
-7. **Run `_testRequest()`.** You get the offer email exactly as Luis will,
+6. **Run `_testRequest()`.** You get the offer email exactly as Luis will,
    with live buttons. It books a free slot about two years out, so you can run
    it as often as you like without colliding with a real charter. Tap Accept and
    follow it through, then **`_cleanupTests()`** removes every test booking,
    its calendar event, its guest rows and its Drive folder. It only ever touches
    rows named "Test Guest".
 
-8. *(Optional)* **Automatic Stripe invoicing** — `pinStripeKey()`. Paste a
+7. *(Optional)* **Automatic Stripe invoicing** — `pinStripeKey()`. Paste a
    **restricted** key (`rk_...`, write access to Customers, Invoices and Invoice
    Items only), Run, then delete it from the function and save. Leave it blank
    to keep billing by hand.
@@ -73,7 +74,7 @@ A hand-made sheet will look right and silently write data into the wrong columns
 
 Step 2 covers it. If you would rather not re-run full setup, the minimum is
 `migrateToOfferFlow()` (adds `GuestMessage` / `RespondedAt` / `InvoiceSent` and
-the Status dropdown), then `installTriggers_()`, then steps 3–5.
+the Status dropdown), then `installTriggers_()`, then `checkSetup()`.
 
 ## How the website / JotForm talk to it
 

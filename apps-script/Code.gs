@@ -68,6 +68,11 @@ const CONFIG = {
   // exists, the accepted-charter email simply omits the agreement link.
   LINK_AGREEMENT_NOPAY:     'https://form.jotform.com/262495678947177', // no-Stripe clone
   AGREEMENT_NOPAY_SHEET_ID: '1599oTyoNbFkgWnxp_o2LoaY3Q-P1cYKhIh3ybDzCXw0', // its Google Sheet
+  // The deployed web app. This is what Luis's Accept/Decline buttons point at, and
+  // it is the same URL the site posts to (site/src/config.ts ENDPOINT) - keep them
+  // in step. Only changes if you create a NEW deployment instead of updating this
+  // one. A WEBAPP_URL script property, if set, overrides it without a code change.
+  WEBAPP_EXEC_URL: 'https://script.google.com/macros/s/AKfycbzXyymV1KNVGmDzu9T-Lemef7Qrfpq6OES4ugP3SGvEi90tAJ0xF2twGwAyKP6H1Iue/exec',
   STRIPE_INVOICE_URL: 'https://dashboard.stripe.com/invoices/create',
   // Automatic Stripe invoicing. OFF until a restricted API key is stored in
   // Script Properties as STRIPE_SECRET_KEY (Project Settings > Script Properties).
@@ -1607,29 +1612,37 @@ function actionUrl_(action, bookingId) {
          '&t=' + encodeURIComponent(token_(action, bookingId));
 }
 /**
- * Base URL of the deployed web app. ScriptApp.getService().getUrl() returns the
- * /dev URL in some contexts, so a WEBAPP_URL script property wins if it is set.
+ * Base URL of the deployed web app, used to build Luis's Accept/Decline links.
+ *
+ * ScriptApp.getService().getUrl() returns the /dev URL from the editor, which
+ * only works for the script owner and silently produces links that fail for
+ * everyone else. So CONFIG.WEBAPP_EXEC_URL is the real source, and it is only
+ * the last-resort fallback.
  */
 function webAppUrl_() {
-  return PROPS.getProperty('WEBAPP_URL') || ScriptApp.getService().getUrl();
+  return PROPS.getProperty('WEBAPP_URL') || CONFIG.WEBAPP_EXEC_URL || ScriptApp.getService().getUrl();
 }
 /**
- * STEP 2 OF SETUP. Paste the deployment's /exec URL below, save, then Run this.
+ * NOT NEEDED IN NORMAL SETUP - CONFIG.WEBAPP_EXEC_URL already carries the URL.
  *
- * The editor's Run button cannot pass arguments, which is why the URL is pasted
- * in rather than taken as a parameter. Getting this wrong means the Accept and
- * Decline buttons in Luis's offer emails point at the wrong deployment, so the
- * function refuses anything that is not a real /exec URL.
+ * Use this only to point at a DIFFERENT deployment without editing the code,
+ * e.g. testing against a second deployment. Edit CONFIG.WEBAPP_EXEC_URL instead
+ * if the change is permanent. Run unpinWebAppUrl() to go back to CONFIG.
  */
 function pinWebAppUrl() {
-  var url = '';   // <-- PASTE between the quotes: https://script.google.com/macros/s/AKfy.../exec
+  var url = '';   // optional override; leave blank to use CONFIG.WEBAPP_EXEC_URL
 
   if (!url) {
-    Logger.log('Paste the /exec URL into pinWebAppUrl() first.\n' +
-      'Find it under Deploy > Manage deployments > the web app > Web app URL.');
+    Logger.log('Nothing pinned. Using CONFIG.WEBAPP_EXEC_URL:\n  ' + CONFIG.WEBAPP_EXEC_URL);
     return;
   }
   setWebAppUrl(url);
+}
+
+/** Drop a pinned override and go back to CONFIG.WEBAPP_EXEC_URL. */
+function unpinWebAppUrl() {
+  PROPS.deleteProperty('WEBAPP_URL');
+  Logger.log('Override cleared. Now using: ' + webAppUrl_());
 }
 
 /** Pin the /exec URL used in Luis's accept/decline links. Called by pinWebAppUrl(). */
@@ -1705,17 +1718,16 @@ function checkSetup() {
   var out = [];
   var pinned = PROPS.getProperty('WEBAPP_URL');
   var live = webAppUrl_();
+  var source = pinned ? 'pinned override' : (CONFIG.WEBAPP_EXEC_URL ? 'CONFIG.WEBAPP_EXEC_URL' : 'editor fallback');
 
-  if (!pinned) {
-    out.push('\u274c Accept/Decline links are NOT pinned.');
-    out.push('   They currently fall back to: ' + live);
-    out.push('   A /dev URL only works while YOU are signed in as the script owner,');
-    out.push('   and it runs whatever is saved in the editor, not the deployment.');
-    out.push('   Fix: paste the /exec URL into pinWebAppUrl() and Run it.');
-  } else if (!/\/exec$/.test(pinned)) {
-    out.push('\u274c Pinned URL is not an /exec URL: ' + pinned);
+  if (/\/exec$/.test(live)) {
+    out.push('\u2705 Accept/Decline links: ' + live);
+    out.push('   (from ' + source + ')');
   } else {
-    out.push('\u2705 Accept/Decline links pinned: ' + pinned);
+    out.push('\u274c Accept/Decline links point at a /dev URL: ' + live);
+    out.push('   A /dev URL only works while YOU are signed in as the script owner,');
+    out.push('   so Luis\u2019s buttons would fail. Set CONFIG.WEBAPP_EXEC_URL to the');
+    out.push('   deployment URL under Deploy > Manage deployments > Web app URL.');
   }
   out.push('   Example link: ' + actionUrl_('accept', 'LL-EXAMPLE-0000'));
   out.push('');
@@ -1756,10 +1768,10 @@ function checkSetup() {
  * with _cleanupTests().
  */
 function _testRequest() {
-  if (!PROPS.getProperty('WEBAPP_URL')) {
-    Logger.log('\u26a0\ufe0f  WEBAPP_URL is not pinned, so the buttons in this email will use the /dev');
-    Logger.log('   URL. It may appear to work for you because you own the script, but it is');
-    Logger.log('   not what Luis should get. Run pinWebAppUrl() first, then run this again.');
+  if (!/\/exec$/.test(webAppUrl_())) {
+    Logger.log('\u26a0\ufe0f  Buttons in this email will use a /dev URL. It may look like it works');
+    Logger.log('   for you because you own the script, but it is not what Luis should get.');
+    Logger.log('   Set CONFIG.WEBAPP_EXEC_URL, then run this again.');
   }
   var slot = nextFreeTestSlot_();
   if (!slot) { Logger.log('No free slot found to test with.'); return; }
