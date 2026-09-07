@@ -1694,23 +1694,149 @@ function htmlPage_(title, bodyHtml) {
     .setTitle(CONFIG.BUSINESS_NAME);
 }
 
-// ====================== QUICK TEST =========================================
+// ====================== SETUP CHECK + TEST TOOLING =========================
+const TEST_GUEST_NAME = 'Test Guest';   // how _cleanupTests() recognises its own rows
+
 /**
- * Run after setup. Creates a fake REQUEST so you get the offer email with real
- * Accept / Decline buttons, exactly as Luis will see it. Tap one to test the
- * rest of the flow, then delete the row and the calendar event.
+ * Run this to answer "is it actually set up?". Reports what is wired and what
+ * is not, and shows the real link Luis would receive.
+ */
+function checkSetup() {
+  var out = [];
+  var pinned = PROPS.getProperty('WEBAPP_URL');
+  var live = webAppUrl_();
+
+  if (!pinned) {
+    out.push('\u274c Accept/Decline links are NOT pinned.');
+    out.push('   They currently fall back to: ' + live);
+    out.push('   A /dev URL only works while YOU are signed in as the script owner,');
+    out.push('   and it runs whatever is saved in the editor, not the deployment.');
+    out.push('   Fix: paste the /exec URL into pinWebAppUrl() and Run it.');
+  } else if (!/\/exec$/.test(pinned)) {
+    out.push('\u274c Pinned URL is not an /exec URL: ' + pinned);
+  } else {
+    out.push('\u2705 Accept/Decline links pinned: ' + pinned);
+  }
+  out.push('   Example link: ' + actionUrl_('accept', 'LL-EXAMPLE-0000'));
+  out.push('');
+
+  out.push((PROPS.getProperty('ACTION_SECRET') ? '\u2705' : '\u274c') + ' Link signing key');
+  out.push((PROPS.getProperty('SPREADSHEET_ID') ? '\u2705' : '\u274c') + ' Operations sheet');
+  out.push((PROPS.getProperty('CHARTERS_FOLDER_ID') ? '\u2705' : '\u274c') + ' Charters folder');
+  out.push((calendar_() ? '\u2705' : '\u274c') + ' Quarters Charters calendar');
+
+  var agr = CONFIG.LINK_AGREEMENT_NOPAY && CONFIG.AGREEMENT_NOPAY_SHEET_ID;
+  out.push((agr ? '\u2705' : '\u274c') + ' Charter agreement (auto-send + chase)' +
+    (agr ? '' : ' \u2014 set LINK_AGREEMENT_NOPAY / AGREEMENT_NOPAY_SHEET_ID in CONFIG'));
+  out.push((PROPS.getProperty('STRIPE_SECRET_KEY') ? '\u2705 Stripe invoicing ON' :
+    '\u2013 Stripe invoicing OFF (Luis invoices by hand \u2014 this is fine)'));
+
+  var trig = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); });
+  out.push((trig.length ? '\u2705' : '\u274c') + ' Triggers installed: ' + (trig.join(', ') || 'NONE \u2014 run setupLaLanchaSystem()'));
+
+  var open = 0, sh = openSS_().getSheetByName('Bookings');
+  var rows = sh.getDataRange().getValues(), H = HEADERS.Bookings;
+  var tests = 0;
+  for (var r = 1; r < rows.length; r++) {
+    if (String(rows[r][H.indexOf('Status')]) === 'Requested') open++;
+    if (String(rows[r][H.indexOf('PrimaryName')]).trim() === TEST_GUEST_NAME) tests++;
+  }
+  out.push('');
+  out.push('Requests awaiting an answer: ' + open);
+  if (tests) out.push('\u26a0\ufe0f  ' + tests + ' test booking(s) still in the sheet \u2014 run _cleanupTests()');
+
+  Logger.log(out.join('\n'));
+}
+
+/**
+ * Sends you the offer email exactly as Luis will get it, with live buttons.
+ *
+ * Picks a free slot roughly two years out, so it never collides with a real
+ * charter and you can run it as many times as you like. Clean up afterwards
+ * with _cleanupTests().
  */
 function _testRequest() {
+  if (!PROPS.getProperty('WEBAPP_URL')) {
+    Logger.log('\u26a0\ufe0f  WEBAPP_URL is not pinned, so the buttons in this email will use the /dev');
+    Logger.log('   URL. It may appear to work for you because you own the script, but it is');
+    Logger.log('   not what Luis should get. Run pinWebAppUrl() first, then run this again.');
+  }
+  var slot = nextFreeTestSlot_();
+  if (!slot) { Logger.log('No free slot found to test with.'); return; }
+
   var out = createRequest({
-    charterDate: '2026-07-04', timeBlock: 'afternoon',
-    primaryName: 'Test Guest', primaryEmail: CONFIG.OWNER_EMAIL, phone: '555-1234',
+    charterDate: slot.date, timeBlock: slot.block,
+    primaryName: TEST_GUEST_NAME, primaryEmail: CONFIG.OWNER_EMAIL, phone: '555-1234',
     partySize: 6, captainStatus: 'need', addOns: 'Water toys',
-    message: 'It is my brother’s 30th. Any chance of a slightly later return?',
+    message: 'It is my brother\u2019s 30th. Any chance of a slightly later return?',
     amountPaid: CONFIG.DEFAULT_BLOCK_PRICE
   });
   Logger.log(out);
-  if (out.ok) {
-    Logger.log('Accept:  ' + actionUrl_('accept', out.bookingId));
-    Logger.log('Decline: ' + actionUrl_('decline', out.bookingId));
+  if (!out.ok) return;
+
+  updateBooking_(out.bookingId, { Notes: 'TEST \u2014 safe to delete' });
+  Logger.log('Test slot: ' + slot.date + ' ' + slot.block);
+  Logger.log('Accept:  ' + actionUrl_('accept', out.bookingId));
+  Logger.log('Decline: ' + actionUrl_('decline', out.bookingId));
+  Logger.log('When you are done: run _cleanupTests()');
+}
+
+/** First open block on or after ~2 years from now, so tests never fight real bookings. */
+function nextFreeTestSlot_() {
+  var d = new Date();
+  d.setFullYear(d.getFullYear() + 2);
+  var blocks = Object.keys(CONFIG.BLOCK_WINDOWS);
+  for (var i = 0; i < 30; i++) {
+    var ds = Utilities.formatDate(d, CONFIG.TIMEZONE, 'yyyy-MM-dd');
+    var avail = getAvailability_(ds);
+    for (var b = 0; b < blocks.length; b++) if (!avail[blocks[b]]) return { date: ds, block: blocks[b] };
+    d.setDate(d.getDate() + 1);
   }
+  return null;
+}
+
+/**
+ * Removes every test booking: sheet rows, calendar events, guest rows, Drive
+ * folders and reminder state. Only touches rows whose guest name is exactly
+ * TEST_GUEST_NAME, so a real charter can never be caught by it.
+ */
+function _cleanupTests() {
+  var ss = openSS_();
+  var sh = ss.getSheetByName('Bookings');
+  var rows = sh.getDataRange().getValues();
+  var H = HEADERS.Bookings;
+  var ids = [];
+
+  for (var r = rows.length - 1; r >= 1; r--) {           // reverse: deleting shifts rows up
+    if (String(rows[r][H.indexOf('PrimaryName')]).trim() !== TEST_GUEST_NAME) continue;
+    ids.push(rows[r][H.indexOf('BookingID')]);
+
+    var evId = rows[r][H.indexOf('EventId')];
+    if (evId) {
+      try { var cal = calendar_(); var ev = cal && cal.getEventById(evId); if (ev) ev.deleteEvent(); }
+      catch (e) { Logger.log('event ' + evId + ': ' + e); }
+    }
+    var m = String(rows[r][H.indexOf('FolderURL')] || '').match(/[-\w]{25,}/);
+    if (m) {
+      try { DriveApp.getFolderById(m[0]).setTrashed(true); }
+      catch (e) { Logger.log('folder: ' + e); }
+    }
+    sh.deleteRow(r + 1);
+  }
+
+  var gsh = ss.getSheetByName('Guests');
+  var g = gsh.getDataRange().getValues();
+  var GH = HEADERS.Guests;
+  for (var r2 = g.length - 1; r2 >= 1; r2--) {
+    if (ids.indexOf(g[r2][GH.indexOf('BookingID')]) >= 0) gsh.deleteRow(r2 + 1);
+  }
+
+  ids.forEach(function (id) {
+    PROPS.deleteProperty('NUDGED_' + id);
+    PROPS.deleteProperty('AGR_NUDGE_' + id);
+    PROPS.deleteProperty('AGR_NUDGE_' + id + '_AT');
+  });
+
+  Logger.log('Removed ' + ids.length + ' test booking(s): ' + (ids.join(', ') || 'none'));
+  Logger.log('Calendar events and charter folders went with them.');
 }

@@ -54,11 +54,17 @@ A hand-made sheet will look right and silently write data into the wrong columns
 5. **Point the site at the same URL.** `ENDPOINT` in `site/src/config.ts`. A
    *new* deployment means a new URL; redeploying an existing one keeps it.
 
-6. **Run `_testRequest()`.** You get the offer email exactly as Luis will,
-   with live buttons. Tap Accept and follow it through. Then delete the test
-   row from Bookings and its event from the calendar.
+6. **Run `checkSetup()`.** One line per thing that has to be wired, and it
+   prints the actual link Luis would receive. Fix anything marked ❌.
 
-7. *(Optional)* **Automatic Stripe invoicing** — `pinStripeKey()`. Paste a
+7. **Run `_testRequest()`.** You get the offer email exactly as Luis will,
+   with live buttons. It books a free slot about two years out, so you can run
+   it as often as you like without colliding with a real charter. Tap Accept and
+   follow it through, then **`_cleanupTests()`** removes every test booking,
+   its calendar event, its guest rows and its Drive folder. It only ever touches
+   rows named "Test Guest".
+
+8. *(Optional)* **Automatic Stripe invoicing** — `pinStripeKey()`. Paste a
    **restricted** key (`rk_...`, write access to Customers, Invoices and Invoice
    Items only), Run, then delete it from the function and save. Leave it blank
    to keep billing by hand.
