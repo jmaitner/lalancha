@@ -58,6 +58,12 @@ A hand-made sheet will look right and silently write data into the wrong columns
 5. **Run `checkSetup()`.** One line per thing that has to be wired, and it
    prints the actual link Luis would receive. Fix anything marked ❌.
 
+   It also asks the live deployment what version it is running and compares it
+   with `CONFIG.CODE_VERSION`. The editor runs the latest saved code while
+   `/exec` keeps serving the last *deployed* version, so pasting code without
+   redeploying leaves guests on the old one while every check you run passes.
+   Bump `CODE_VERSION` whenever deployed behaviour changes.
+
 6. **Run `_testRequest()`.** You get the offer email exactly as Luis will,
    with live buttons. It books a free slot about two years out, so you can run
    it as often as you like without colliding with a real charter. Tap Accept and

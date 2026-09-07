@@ -46,7 +46,7 @@ Nothing is confirmed until Luis says yes. He gets every charter as an offer he a
 - **Edit the offer email Luis gets**: `sendOfferToLuis_`. The accepted-charter email: `sendAcceptedEmail_`.
 - **Change time blocks**: `TIME_BLOCKS` + `BLOCK_WINDOWS` in Code.gs CONFIG (and `BLOCKS` in site config.ts).
 - **Brand colors/fonts**: `:root` vars in `site/src/layouts/Base.astro`.
-- After editing Code.gs: `cd apps-script && npx clasp push && npx clasp create-deployment` (or redeploy the existing deployment id). After editing the site: `cd site && npm run build`, commit, push (Cloudflare redeploys).
+- After editing Code.gs: `cd apps-script && npx clasp push && npx clasp create-deployment` (or redeploy the existing deployment id). **Bump `CONFIG.CODE_VERSION` and redeploy** — the editor runs HEAD while `/exec` serves the last *deployed* version, so pasting code without redeploying leaves guests on the old one. `checkSetup()` asks the live deployment for its version and flags the drift. After editing the site: `cd site && npm run build`, commit, push (Cloudflare redeploys).
 
 ## External pieces (live)
 - Google Workspace on lalanchacharters@gmail.com: Operations sheet, "Quarters Charters" calendar, Drive folders, 2 Google Forms.

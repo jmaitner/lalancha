@@ -73,6 +73,11 @@ const CONFIG = {
   // in step. Only changes if you create a NEW deployment instead of updating this
   // one. A WEBAPP_URL script property, if set, overrides it without a code change.
   WEBAPP_EXEC_URL: 'https://script.google.com/macros/s/AKfycbzXyymV1KNVGmDzu9T-Lemef7Qrfpq6OES4ugP3SGvEi90tAJ0xF2twGwAyKP6H1Iue/exec',
+  // Bumped whenever the deployed behaviour changes. checkSetup() asks the live
+  // deployment for its version and compares: the editor runs HEAD while /exec
+  // serves the last DEPLOYED version, so the two drift apart silently every
+  // time code is pasted without redeploying.
+  CODE_VERSION: '2026-09-07.1',
   STRIPE_INVOICE_URL: 'https://dashboard.stripe.com/invoices/create',
   // Automatic Stripe invoicing. OFF until a restricted API key is stored in
   // Script Properties as STRIPE_SECRET_KEY (Project Settings > Script Properties).
@@ -723,7 +728,8 @@ function doGet(e) {
   if (action === 'availability') {
     return json_({ ok: true, date: e.parameter.date || null, booked: getAvailability_(e.parameter.date) });
   }
-  return json_({ ok: true, service: CONFIG.BUSINESS_NAME + ' backend' });
+  return json_({ ok: true, service: CONFIG.BUSINESS_NAME + ' backend',
+                 version: CONFIG.CODE_VERSION });
 }
 
 /**
@@ -1730,6 +1736,25 @@ function checkSetup() {
     out.push('   deployment URL under Deploy > Manage deployments > Web app URL.');
   }
   out.push('   Example link: ' + actionUrl_('accept', 'LL-EXAMPLE-0000'));
+
+  // Is the deployment actually running this code? Ask it.
+  try {
+    var res = UrlFetchApp.fetch(live, { muteHttpExceptions: true, followRedirects: true });
+    var served = (JSON.parse(res.getContentText() || '{}') || {}).version;
+    if (!served) {
+      out.push('\u274c The deployment did not report a version. It is running code from');
+      out.push('   before this check existed. Deploy > Manage deployments > edit > New version.');
+    } else if (served !== CONFIG.CODE_VERSION) {
+      out.push('\u274c The deployment is running OLDER code (' + served + ', editor has ' +
+        CONFIG.CODE_VERSION + ').');
+      out.push('   Guests hit the deployment, not the editor, so redeploy before trusting this.');
+      out.push('   Deploy > Manage deployments > edit > New version > Deploy.');
+    } else {
+      out.push('\u2705 Deployment is running this exact code (' + served + ')');
+    }
+  } catch (err) {
+    out.push('\u26a0\ufe0f  Could not reach the deployment to check its version: ' + err);
+  }
   out.push('');
 
   out.push((PROPS.getProperty('ACTION_SECRET') ? '\u2705' : '\u274c') + ' Link signing key');
