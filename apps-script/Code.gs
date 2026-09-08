@@ -77,7 +77,7 @@ const CONFIG = {
   // deployment for its version and compares: the editor runs HEAD while /exec
   // serves the last DEPLOYED version, so the two drift apart silently every
   // time code is pasted without redeploying.
-  CODE_VERSION: '2026-09-07.1',
+  CODE_VERSION: '2026-09-07.2',
   STRIPE_INVOICE_URL: 'https://dashboard.stripe.com/invoices/create',
   // Automatic Stripe invoicing. OFF until a restricted API key is stored in
   // Script Properties as STRIPE_SECRET_KEY (Project Settings > Script Properties).
@@ -626,7 +626,7 @@ function createLead(data) {
   if (data.email) {
     GmailApp.sendEmail(data.email, 'Thanks for reaching out to ' + CONFIG.BUSINESS_NAME,
       'Hi ' + (data.name || 'there') + ',\n\nThanks for your interest in chartering ' +
-      CONFIG.BOAT_NAME + '! Luis will follow up shortly with availability and details.\n\n— ' +
+      CONFIG.BOAT_NAME + '! We will follow up shortly with availability and details.\n\n— ' +
       CONFIG.BUSINESS_NAME);
   }
   return { ok: true };
@@ -1056,13 +1056,13 @@ function sendRequestAck_(data, bookingId) {
     'We got your request for ' + CONFIG.BOAT_NAME + ' (' + bookingId + ')',
     shell_(
       '<p>Hi ' + esc_(first) + ',</p>' +
-      '<p>Your request is in and we are holding the slot while Luis takes a look.</p>' +
+      '<p>Your request is in and we are holding the slot while we take a look.</p>' +
       '<p><strong>' + esc_(data.charterDate) + ' &middot; ' + esc_(block) +
         (data.partySize ? ' &middot; party of ' + esc_(data.partySize) : '') + '</strong><br>' +
         '<span style="color:#5f6b53">$' + esc_(data.amountPaid || CONFIG.DEFAULT_BLOCK_PRICE) +
         ' for the boat. Captain and fuel are billed separately.</span></p>' +
-      '<p>Luis answers the same day. Nothing is charged yet, and there is nothing for you ' +
-        'to do until he confirms.</p>' +
+      '<p>We answer the same day. Nothing is charged yet, and there is nothing for you ' +
+        'to do until we confirm.</p>' +
       '<p>Just reply to this email if anything changes.</p>' +
       '<p>&mdash; ' + CONFIG.BUSINESS_NAME + '<br>' +
         '<span style="color:#888;font-size:12px">Request ' + bookingId + '</span></p>'),
@@ -1080,7 +1080,7 @@ function sendAcceptedEmail_(b, bookingId, invoice) {
   var amount = b.AmountPaid || CONFIG.DEFAULT_BLOCK_PRICE;
 
   var captainPara = needsCaptain
-    ? 'We do not expect you to have a captain in your back pocket, so we maintain a roster of independent captains familiar with the boat. Luis has reached out to that list already and will confirm someone for you. You are also welcome to bring your own qualified captain.'
+    ? 'We do not expect you to have a captain in your back pocket, so we maintain a roster of independent captains familiar with the boat. We have reached out to that list already and will confirm someone for you. You are also welcome to bring your own qualified captain.'
     : 'You let us know you are bringing your own qualified captain, perfect. Please send their credentials over so we can confirm them. If anything changes, we keep a roster of independent captains familiar with the boat and can help.';
 
   // Only surface an agreement link once the payment-free version of the form exists.
@@ -1095,7 +1095,7 @@ function sendAcceptedEmail_(b, bookingId, invoice) {
     'Confirmed, you are on the water (' + bookingId + ')',
     shell_(
       '<p>Hi ' + esc_(firstName) + ',</p>' +
-      '<p>Luis confirmed it. You are locked in aboard <strong>' + CONFIG.BOAT_NAME + '</strong>.</p>' +
+      '<p>You are confirmed and locked in aboard <strong>' + CONFIG.BOAT_NAME + '</strong>.</p>' +
       '<p><strong>Your charter:</strong> ' + esc_(b.CharterDate) + ' &middot; ' + esc_(b.TimeBlock) +
         (b.PartySize ? ' &middot; party of ' + esc_(b.PartySize) : '') + '</p>' +
       '<p>We operate under a <strong>bareboat / demise charter model</strong>. The vessel is legally released ' +
@@ -1110,7 +1110,7 @@ function sendAcceptedEmail_(b, bookingId, invoice) {
       ((invoice && invoice.ok && invoice.sent)
         ? '<p><strong>Payment:</strong> your invoice for the <strong>$' + esc_(amount) +
           '</strong> charter is in your inbox. <a href="' + invoice.url + '">You can also pay it here</a>.</p>'
-        : '<p><strong>Payment:</strong> Luis will send you an invoice for the <strong>$' + esc_(amount) +
+        : '<p><strong>Payment:</strong> We will send you an invoice for the <strong>$' + esc_(amount) +
           '</strong> charter. Nothing to do right now.</p>') +
       agreementBlock +
       '<p><strong>Waivers:</strong> every guest signs one, and we handle it right at the dock before you board. ' +
@@ -1193,7 +1193,7 @@ function sendDeclinedEmail_(b, bookingId) {
       '<p>Sorry, we cannot take ' + esc_(b.CharterDate) + ' &middot; ' + esc_(b.TimeBlock) +
         '. Nothing has been charged.</p>' +
       '<p>Other dates are likely wide open, so it is worth another look: ' +
-        '<a href="https://la-lancha.com/book">check availability</a>. Or just reply here and Luis will ' +
+        '<a href="https://la-lancha.com/book">check availability</a>. Or just reply here and we will ' +
         'find you something that works.</p>' +
       '<p>&mdash; ' + CONFIG.BUSINESS_NAME + '</p>'),
     CONFIG.OWNER_EMAIL);
@@ -1704,6 +1704,11 @@ function handleDecision_(e, action) {
 function htmlPage_(title, bodyHtml) {
   return HtmlService.createHtmlOutput(
     '<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    // Apps Script serves this inside a sandboxed iframe. Without a _blank target a
+    // link tries to navigate that frame, and anything sending X-Frame-Options: DENY
+    // (Stripe's dashboard, for one) is blocked with no visible error - the click
+    // just appears to do nothing.
+    '<base target="_blank">' +
     '<style>body{font-family:-apple-system,Arial,sans-serif;margin:0;padding:34px 22px;' +
     'background:#fdfbf6;color:#1a1a1a;line-height:1.55}h1{font-size:24px;margin:0 0 14px}' +
     'p{margin:0 0 12px;font-size:16px}.box{background:#fff;border:1px solid #e5e0d4;' +
