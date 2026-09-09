@@ -63,7 +63,7 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Review'];
       </div>
       <div class="row">
         <label class="fld">Email<input id="primaryEmail" type="email" required /></label>
-        <label class="fld">Phone<input id="phone" inputmode="tel" /></label>
+        <label class="fld">Cell<input id="phone" type="tel" inputmode="tel" required /></label>
       </div>
       <label class="fld">Party size<select id="partySize"></select></label>
       <label class="fld">Add-ons / requests <span class="muted">(optional)</span>
@@ -172,7 +172,13 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Review'];
       const first = document.getElementById('firstName').value.trim();
       const last = document.getElementById('lastName').value.trim();
       const email = document.getElementById('primaryEmail').value.trim();
-      if (!first || !last || !email) { alert('Please add your first name, last name, and email.'); return; }
+      const phone = document.getElementById('phone').value.trim();
+      if (!first || !last || !email || !phone) {
+        alert('Please add your first name, last name, email, and cell number.'); return;
+      }
+      if (phone.replace(/\D/g, '').length < 10) {
+        alert('That cell number looks short. Please include the area code.'); return;
+      }
       renderReview(); setStep(4);
     });
 
@@ -184,6 +190,7 @@ const STEPS = ['Date & time', 'Captain', 'Your details', 'Review'];
         ['Captain', state.captain === 'need' ? 'We arrange one ($100–$150/hr)' : 'Bringing my own'],
         ['Name', document.getElementById('firstName').value + ' ' + document.getElementById('lastName').value],
         ['Email', document.getElementById('primaryEmail').value],
+        ['Cell', document.getElementById('phone').value],
         ['Party size', document.getElementById('partySize').value],
       ];
       const addOns = document.getElementById('addOns').value.trim();

@@ -77,7 +77,7 @@ const CONFIG = {
   // deployment for its version and compares: the editor runs HEAD while /exec
   // serves the last DEPLOYED version, so the two drift apart silently every
   // time code is pasted without redeploying.
-  CODE_VERSION: '2026-09-07.2',
+  CODE_VERSION: '2026-09-09.1',
   STRIPE_INVOICE_URL: 'https://dashboard.stripe.com/invoices/create',
   // Automatic Stripe invoicing. OFF until a restricted API key is stored in
   // Script Properties as STRIPE_SECRET_KEY (Project Settings > Script Properties).
@@ -1019,13 +1019,15 @@ function sendOfferToLuis_(data, bookingId) {
     '<h2 style="margin:0 0 16px;font-size:22px">' + esc_(data.primaryName || 'Guest') +
       ' wants ' + esc_(CONFIG.BOAT_NAME) + '</h2>' +
     '<table style="font-size:15px;border-collapse:collapse;margin-bottom:18px">' +
+      row('Name', esc_(data.primaryName || '')) +
+      row('Phone', telLink_(data.phone)) +
+      row('Email', mailLink_(data.primaryEmail)) +
       row('Date', esc_(data.charterDate)) +
       row('Time', esc_(block)) +
       row('Party', esc_(data.partySize || '?')) +
       row('Their price', '$' + esc_(data.amountPaid || CONFIG.DEFAULT_BLOCK_PRICE)) +
       row('Captain', needs ? 'needs one from the roster' : 'bringing their own') +
       (data.addOns ? row('Asks for', esc_(data.addOns)) : '') +
-      row('Contact', esc_(data.primaryEmail || '') + (data.phone ? '<br>' + esc_(data.phone) : '')) +
     '</table>' +
     (data.message
       ? '<p style="background:#fff;border-left:3px solid #c2185b;padding:12px 14px;margin:0 0 18px">' +
@@ -1156,6 +1158,8 @@ function sendAcceptedReceiptToLuis_(b, bookingId, folderUrl, invoice) {
       '<p>' + esc_(b.CharterDate) + ' &middot; ' + esc_(b.TimeBlock) + ' &middot; party of ' +
         esc_(b.PartySize || '?') + ' &middot; captain ' +
         (String(b.CaptainStatus).toLowerCase() === 'need' ? '<strong>NEEDED</strong>' : 'theirs') + '</p>' +
+      '<p><strong>' + esc_(b.PrimaryName || '') + '</strong><br>' +
+        telLink_(b.Phone) + ' &middot; ' + mailLink_(b.PrimaryEmail) + '</p>' +
       (folderUrl ? '<p><a href="' + folderUrl + '">Charter folder</a></p>' : '') +
       '<p style="color:#999;font-size:12px">Booking ' + bookingId + '</p>'),
     b.PrimaryEmail || '');
@@ -1197,6 +1201,20 @@ function sendDeclinedEmail_(b, bookingId) {
         'find you something that works.</p>' +
       '<p>&mdash; ' + CONFIG.BUSINESS_NAME + '</p>'),
     CONFIG.OWNER_EMAIL);
+}
+
+/** Tap-to-call link. Says so plainly when there is no number, rather than going blank. */
+function telLink_(phone) {
+  var p = String(phone == null ? '' : phone).trim();
+  if (!p) return '<span style="color:#b34527">not given</span>';
+  var digits = p.replace(/[^\d+]/g, '');
+  return '<a href="tel:' + esc_(digits) + '" style="color:#1b4a50">' + esc_(p) + '</a>';
+}
+/** Tap-to-email link. */
+function mailLink_(email) {
+  var e = String(email == null ? '' : email).trim();
+  if (!e) return '<span style="color:#b34527">not given</span>';
+  return '<a href="mailto:' + esc_(e) + '" style="color:#1b4a50">' + esc_(e) + '</a>';
 }
 
 function esc_(s) {
