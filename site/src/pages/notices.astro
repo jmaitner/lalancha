@@ -1,6 +1,6 @@
 ---
 import Base from '../layouts/Base.astro';
-import { ENDPOINT } from '../config.ts';
+import { NOTICES_ENDPOINT } from '../config.ts';
 
 const title = 'Chicago Notice to Mariners · lancha boat';
 const description =
@@ -45,7 +45,7 @@ const description =
     </div>
   </section>
 
-  <script define:vars={{ ENDPOINT }}>
+  <script define:vars={{ NOTICES_ENDPOINT }}>
     const feed = document.getElementById('feed');
     const feedMsg = document.getElementById('feed-msg');
     const updatedEl = document.getElementById('updated');
@@ -99,8 +99,13 @@ const description =
     });
 
     (async () => {
+      if (!NOTICES_ENDPOINT) {
+        feedMsg.innerHTML = `This feed is being set up. In the meantime, check the
+          <a href="https://www.navcen.uscg.gov/broadcast-notice-to-mariners" target="_blank" rel="noopener">official Coast Guard notices</a>.`;
+        return;
+      }
       try {
-        const res = await fetch(`${ENDPOINT}?action=notices`, { method: 'GET' });
+        const res = await fetch(`${NOTICES_ENDPOINT}?action=notices`, { method: 'GET' });
         const data = await res.json();
         ALL = (data && data.notices) || [];
         updatedEl.textContent = data && data.updated ? `Updated ${ago(data.updated)}` : '';

@@ -1,9 +1,10 @@
 /**
  * Notices.gs — Chicago "Notice to Mariners" aggregator.
  *
- * ISOLATED module. It shares only the Apps Script deployment (doGet dispatches
- * ?action=notices here) and PropertiesService. It never calls booking code and
- * never reads booking data — it keeps its own Google Sheet store.
+ * STANDALONE project. This is its own Apps Script project + web-app deployment,
+ * completely separate from the booking/checkout backend. It has its own doGet,
+ * its own 15-minute trigger, and its own "La Lancha — Notices" Google Sheet.
+ * It never touches booking code or data.
  *
  * Portability: fetchFeed_ / normalize* / classifyChicago_ are pure functions;
  * storage sits behind loadNotices_ / saveNotices_. To move this to Cloudflare
@@ -16,6 +17,18 @@
  * ONE-TIME SETUP (after `clasp push`): run setupNotices() once. It creates the
  * store, installs a 15-minute ingestion trigger, and backfills.
  */
+
+var PROPS = PropertiesService.getScriptProperties();
+
+/** Web app entry (this project only serves notices). GET ?action=notices. */
+function doGet(e) {
+  var action = e && e.parameter ? e.parameter.action : null;
+  if (action === 'notices') return json_(getNoticesPayload_());
+  return json_({ ok: true, service: 'La Lancha Notices' });
+}
+function json_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
 
 var NOTICES_CFG = {
   // Official USCG NAVCEN GovDelivery RSS feeds.

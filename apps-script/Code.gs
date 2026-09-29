@@ -713,7 +713,6 @@ function doPost(e) {
  * GET endpoint.
  *   ?action=pricing&date=YYYY-MM-DD   -> { ok, date, blocks, booked }   (site)
  *   ?action=accept|decline&id=..&t=.. -> HTML page                      (Luis)
- *   ?action=notices                   -> { ok, updated, notices }        (site /notices)
  *   (no action)                       -> health check
  */
 function doGet(e) {
@@ -728,9 +727,6 @@ function doGet(e) {
   }
   if (action === 'availability') {
     return json_({ ok: true, date: e.parameter.date || null, booked: getAvailability_(e.parameter.date) });
-  }
-  if (action === 'notices') {
-    return json_(getNoticesPayload_()); // Chicago Notice to Mariners — see Notices.gs (isolated)
   }
   return json_({ ok: true, service: CONFIG.BUSINESS_NAME + ' backend',
                  version: CONFIG.CODE_VERSION });
