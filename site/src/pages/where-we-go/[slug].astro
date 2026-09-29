@@ -7,7 +7,14 @@ export function getStaticPaths() {
 }
 const { d } = Astro.props;
 const site = Astro.site ?? new URL('https://lanchaboat.com');
-const pageUrl = new URL(`/where-we-go/${d.slug}`, site).href;
+const pageUrl = new URL(`/where-we-go/${d.slug}/`, site).href;
+// Destinations that have a crewed experience built around them link to it.
+const related: Record<string, { href: string; label: string }> = {
+  'the-river': { href: '/experiences#architecture-tour', label: 'Or take the guided architecture tour →' },
+  'burnham': { href: '/experiences#soldier-field-shuttle', label: 'Headed to a game or concert? Take the shuttle →' },
+  'south-loop': { href: '/experiences#sunset-cruise', label: 'Catch it at sunset on our sunset cruise →' },
+};
+const rel = related[d.slug];
 const heroUrl = new URL(`/images/${d.hero}.jpg`, site).href;
 
 const jsonld = {
@@ -19,9 +26,7 @@ const jsonld = {
       description: d.description,
       image: heroUrl,
       url: pageUrl,
-      provider: { '@type': 'LocalBusiness', name: 'lancha boat', image: heroUrl,
-        address: { '@type': 'PostalAddress', addressLocality: 'Chicago', addressRegion: 'IL', addressCountry: 'US' },
-        areaServed: 'Chicago, Lake Michigan' },
+      provider: { '@id': new URL('/#business', site).href },
       touristType: d.bestFor,
     },
     {
@@ -35,7 +40,7 @@ const jsonld = {
       '@type': 'BreadcrumbList',
       itemListElement: [
         { '@type': 'ListItem', position: 1, name: 'Home', item: site.href },
-        { '@type': 'ListItem', position: 2, name: 'Where we go', item: new URL('/where-we-go', site).href },
+        { '@type': 'ListItem', position: 2, name: 'Where we go', item: new URL('/where-we-go/', site).href },
         { '@type': 'ListItem', position: 3, name: d.name, item: pageUrl },
       ],
     },
@@ -57,6 +62,7 @@ const jsonld = {
         <p class="dp-blurb">{d.blurb}</p>
         <p class="dp-intro">{d.intro}</p>
         <a class="btn" href="/book">Check dates &amp; book →</a>
+        {rel && <p class="dp-related"><a href={rel.href}>{rel.label}</a></p>}
       </div>
       <div class="dp-hero-photo">
         <img src={`/images/${d.hero}.jpg`} alt={`${d.name} aboard Quarters in Chicago`} />
@@ -152,5 +158,7 @@ const jsonld = {
       .dp-hero { grid-template-columns: 1fr; } .dp-hero-photo { order: -1; max-width: 440px; }
       .dp-body { grid-template-columns: 1fr; } .dp-side { position: static; }
     }
+    .dp-related { margin: 14px 0 0; }
+    .dp-related a { font-family: var(--display); font-weight: 700; color: var(--blue); }
   </style>
 </Base>

@@ -8,13 +8,21 @@ const site = Astro.site ?? new URL('https://lanchaboat.com');
 const siteLd = {
   '@context': 'https://schema.org',
   '@graph': [
-    { '@type': 'WebSite', name: 'lancha boat', url: site.href,
-      description: 'Private boat charters aboard Quarters on Lake Michigan, Chicago.' },
-    { '@type': ['LocalBusiness', 'TouristAttraction'], name: 'lancha boat',
-      image: new URL('/og.jpg', site).href, url: site.href, email: 'lalanchacharters@gmail.com',
-      description: 'Private boat charters aboard Quarters on Lake Michigan: morning, afternoon, and night charters from Diversey Harbor, Chicago. Bareboat model with a USCG-licensed captain.',
-      address: { '@type': 'PostalAddress', streetAddress: 'Diversey Harbor, K-Dock Slip 8', addressLocality: 'Chicago', addressRegion: 'IL', addressCountry: 'US' },
-      areaServed: 'Chicago, Lake Michigan', priceRange: '$$' },
+    { '@type': 'WebSite', '@id': new URL('/#website', site).href, name: 'lancha boat',
+      alternateName: ['La Lancha Charters', 'La Lancha'], url: site.href,
+      description: 'Private boat charters and crewed boat experiences aboard Quarters on Lake Michigan, Chicago.' },
+    { '@type': ['LocalBusiness', 'TouristAttraction'], '@id': new URL('/#business', site).href,
+      name: 'lancha boat', alternateName: ['La Lancha Charters', 'La Lancha', 'lanchaboats'],
+      image: new URL('/og.jpg', site).href, logo: new URL('/apple-touch-icon.png', site).href,
+      url: site.href, email: 'lalanchacharters@gmail.com',
+      description: 'Private boat charters and crewed experiences aboard Quarters from Diversey Harbor, Chicago: four-hour bareboat charters with a U.S. Coast Guard-licensed captain, a private lake and river architecture tour, a sunset cruise, a Soldier Field and Northerly Island shuttle, and boat relocation.',
+      founder: { '@type': 'Person', name: 'Luis G. Vecchio', jobTitle: 'Captain', url: new URL('/crew/luis/', site).href },
+      address: { '@type': 'PostalAddress', streetAddress: 'Diversey Harbor, K-Dock, Slip 8', addressLocality: 'Chicago', addressRegion: 'IL', postalCode: '60614', addressCountry: 'US' },
+      // Diversey Harbor (2601 N Cannon Dr). Keep in step with the Google Business Profile pin.
+      geo: { '@type': 'GeoCoordinates', latitude: 41.929, longitude: -87.634 },
+      areaServed: { '@type': 'City', name: 'Chicago' },
+      sameAs: ['https://www.instagram.com/lanchaboats/'],
+      priceRange: '$$' },
   ],
 };
 
@@ -30,7 +38,9 @@ const gallery = [
   'img_2080', 'img_2523', 'img_2544',
 ];
 ---
-<Base>
+<Base
+  title="Private Boat Charters in Chicago from Diversey Harbor | lancha boat"
+  description="Private boat charters on Lake Michigan from Diversey Harbor, Chicago. Four-hour charters, a private architecture tour, and sunset cruises. Bring your own whatever.">
   <Fragment slot="head">
     <script type="application/ld+json" set:html={JSON.stringify(siteLd)} />
   </Fragment>

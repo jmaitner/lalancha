@@ -17,6 +17,10 @@ const ogImage = image.startsWith('http') ? image : new URL(image, base).href;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="preload" href="/fonts/ZalandoSans-Variable.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/ZalandoSansExpanded-Variable.woff2" as="font" type="font/woff2" crossorigin />
     <meta name="description" content={description} />
     {canonical && <link rel="canonical" href={canonical} />}
     <meta property="og:title" content={title} />
@@ -60,7 +64,16 @@ const ogImage = image.startsWith('http') ? image : new URL(image, base).href;
 
     <footer class="footer">
       <div class="foot-logo"><img src="/brand/logolockup_bazooka.svg" alt="lancha boat" class="logo-svg logo-svg--footer" width="211" height="59" /></div>
+      <nav class="foot-links" aria-label="Footer">
+        <a href="/book">Book a charter</a>
+        <a href="/experiences">Experiences</a>
+        <a href="/where-we-go">Where we go</a>
+        <a href="/crew">Crew</a>
+        <a href="/notices">Notice to Mariners</a>
+        <a href="https://www.instagram.com/lanchaboats/" rel="me noopener" target="_blank">Instagram</a>
+      </nav>
       <p>Private charters aboard <em>Quarters</em> · Diversey Harbor · K-Dock, Slip 8 · Chicago</p>
+      <p><a class="foot-mail" href="mailto:lalanchacharters@gmail.com">lalanchacharters@gmail.com</a></p>
       <p class="muted">Operated as a bareboat (demise) charter in compliance with U.S. Coast Guard vessel safety standards.</p>
       <span class="builtby">
         <span class="builtby-label">Built by</span>
@@ -72,28 +85,28 @@ const ogImage = image.startsWith('http') ? image : new URL(image, base).href;
       /* ── Brand fonts (self-hosted, variable) ─────────────────────────── */
       @font-face {
         font-family: 'Zalando Sans';
-        src: url('/fonts/ZalandoSans-Variable.ttf') format('truetype');
+        src: url('/fonts/ZalandoSans-Variable.woff2') format('woff2'), url('/fonts/ZalandoSans-Variable.ttf') format('truetype');
         font-weight: 100 900;
         font-style: normal;
         font-display: swap;
       }
       @font-face {
         font-family: 'Zalando Sans';
-        src: url('/fonts/ZalandoSans-Variable-Italic.ttf') format('truetype');
+        src: url('/fonts/ZalandoSans-Variable-Italic.woff2') format('woff2'), url('/fonts/ZalandoSans-Variable-Italic.ttf') format('truetype');
         font-weight: 100 900;
         font-style: italic;
         font-display: swap;
       }
       @font-face {
         font-family: 'Zalando Sans Expanded';
-        src: url('/fonts/ZalandoSansExpanded-Variable.ttf') format('truetype');
+        src: url('/fonts/ZalandoSansExpanded-Variable.woff2') format('woff2'), url('/fonts/ZalandoSansExpanded-Variable.ttf') format('truetype');
         font-weight: 100 900;
         font-style: normal;
         font-display: swap;
       }
       @font-face {
         font-family: 'Covered By Your Grace';
-        src: url('/fonts/CoveredByYourGrace-Regular.ttf') format('truetype');
+        src: url('/fonts/CoveredByYourGrace-Regular.woff2') format('woff2'), url('/fonts/CoveredByYourGrace-Regular.ttf') format('truetype');
         font-weight: 400;
         font-style: normal;
         font-display: swap;
@@ -188,6 +201,9 @@ const ogImage = image.startsWith('http') ? image : new URL(image, base).href;
       .footer p { margin: 5px 0; font-size: 14px; }
       .footer .muted { color: #cfd2ff; }
       .footer em { color: var(--gold); }
+      .foot-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 20px; margin: 18px 0 14px; }
+      .foot-links a, .foot-mail { color: var(--cream); font-family: var(--display); font-weight: 700; font-size: 14px; text-decoration: none; }
+      .foot-links a:hover, .foot-mail:hover { color: var(--gold); }
       .builtby { display: inline-flex; align-items: center; gap: 10px; margin-top: 20px;
                  background: #fff; padding: 8px 16px; border-radius: 999px; }
       .builtby-label { color: #6b7280; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }

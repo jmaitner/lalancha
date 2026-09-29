@@ -3,11 +3,38 @@ import Base from '../layouts/Base.astro';
 import { ENDPOINT, MAX_PARTY } from '../config.ts';
 import { experiences, SUNSET_LEAD_MIN } from '../experiences.ts';
 
-const title = 'Experiences · Architecture Tour, Sunset Cruise & Game Day Shuttle | lancha boat';
+const title = 'Private Architecture Tour & Sunset Cruise in Chicago | lancha boat';
 const description =
-  'Crewed trips aboard Quarters from Diversey Harbor: a private lake and river architecture tour, a sunset cruise timed to the sun, a shuttle to Soldier Field and Northerly Island concerts, and boat relocation across Chicagoland.';
+  'Crewed trips from Diversey Harbor: a private lake and river architecture tour, a sunset cruise timed to the sun, a boat to Soldier Field, and boat relocation.';
+const site = Astro.site ?? new URL('https://lanchaboat.com');
+const pageUrl = new URL('/experiences/', site).href;
+const jsonld = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    ...experiences.map((x) => ({
+      '@type': x.passengers ? 'TouristTrip' : 'Service',
+      '@id': `${pageUrl}#${x.slug}`,
+      name: x.title,
+      description: `${x.tagline} ${x.body[0]}`,
+      url: `${pageUrl}#${x.slug}`,
+      image: new URL(`/images/${x.photo}.jpg`, site).href,
+      provider: { '@id': new URL('/#business', site).href },
+      areaServed: { '@type': 'City', name: 'Chicago' },
+    })),
+    {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: site.href },
+        { '@type': 'ListItem', position: 2, name: 'Experiences', item: pageUrl },
+      ],
+    },
+  ],
+};
 ---
 <Base title={title} description={description}>
+  <Fragment slot="head">
+    <script type="application/ld+json" set:html={JSON.stringify(jsonld)} />
+  </Fragment>
   <section class="wrap intro-sec">
     <p class="kicker">Crewed by us · Fuel included</p>
     <h1>Experiences</h1>
@@ -16,9 +43,10 @@ const description =
   </section>
 
   <section class="wrap xp-list">
-    {experiences.map((x) => (
+    {experiences.map((x, i) => (
       <article class="card xp" id={x.slug} data-slug={x.slug}>
-        <img class="xp-photo" src={`/images/${x.photo}.jpg`} alt={x.title} loading="lazy" />
+        <img class="xp-photo" src={`/images/${x.photo}.jpg`} alt={x.title}
+          loading={i === 0 ? 'eager' : 'lazy'} fetchpriority={i === 0 ? 'high' : 'auto'} width="1000" height="1333" />
         <div class="xp-body">
           <p class="xp-kicker">{x.kicker}</p>
           <h2>{x.title}</h2>

@@ -1,23 +1,34 @@
-# lancha boat
+# lancha boat (La Lancha Charters)
 
-> Private boat charters aboard *Quarters* on Lake Michigan in Chicago. Morning, afternoon, and night charters departing from Diversey Harbor. Operated as a bareboat / demise charter: lancha boat lines up a USCG-licensed captain; guests bring their own food and drinks.
+> Private boat charters and crewed boat experiences in Chicago aboard Quarters, a boat docked at Diversey Harbor on Lake Michigan. Also known as La Lancha Charters. Owned and operated by Captain Luis G. Vecchio. Website: https://lanchaboat.com. Instagram: @lanchaboats.
 
 ## Key facts
-- Boat: Quarters, docked at Diversey Harbor, K-Dock Slip 8, Chicago, IL
-- Time blocks: Morning 10:00 AM–2:00 PM · Afternoon 2:30–6:30 PM · Night 7:00–11:00 PM (each a 4-hour private charter)
-- Captain: a USCG-licensed captain is required; typically $100–$150/hr, arranged separately. Guests may bring their own qualified captain.
-- Fuel: flat $25 if the trip stays at the Playpen, otherwise $25/hr of engine time, invoiced after the trip.
-- Booking: online with live calendar availability; open slots auto-confirm.
+- Boat: Quarters, Diversey Harbor, K-Dock, Slip 8, Lincoln Park, Chicago, IL.
+- Capacity: up to 12 guests on a bareboat charter.
+- Booking: request online at https://lanchaboat.com/book or https://lanchaboat.com/experiences. Every request is reviewed and confirmed personally, usually the same day. Nothing is charged until it is confirmed; payment is by invoice.
 - Contact: lalanchacharters@gmail.com
+- Guests bring their own food and drinks.
+- Waivers are signed at the dock before boarding.
 
-## Destinations
-- [The Playpen](/where-we-go/playpen): Chicago's legendary boat-party anchorage off Ohio Street Beach (top pick).
-- [South Loop & Museum Campus](/where-we-go/south-loop): the cleanest head-on view of the Chicago skyline.
-- [Navy Pier](/where-we-go/navy-pier): the iconic pier, plus summer fireworks (Wednesdays & Saturdays) from the water.
-- [Burnham Harbor & Northerly Island](/where-we-go/burnham): calmer, protected water with skyline and Museum Campus views.
-- [The Chicago River](/where-we-go/the-river): an up-close architecture cruise on calm water — the most family-friendly route.
+## Bareboat charters (you charter the boat)
+- Three four-hour blocks a day: Morning 10:00 AM to 2:00 PM, Afternoon 2:30 PM to 6:30 PM, Night 7:00 PM to 11:00 PM.
+- Standard price is listed per block on the booking page; some dates are priced higher.
+- A U.S. Coast Guard-licensed captain is required. lancha boat keeps a roster of captains who know Quarters (typically $100 to $150 per hour, paid separately), or guests may bring their own qualified captain.
+- Fuel is a flat $50 per charter, invoiced after the trip.
 
-## Pages
-- [Home](/)
-- [Book a charter](/book)
-- [Where we go](/where-we-go)
+## Crewed experiences (we run the trip; captain, crew, and fuel included)
+- [Lake & River Architecture Tour](https://lanchaboat.com/experiences/#architecture-tour): about 3.5 hours, private. Starts at Diversey Harbor, runs along the Lincoln Park lakefront and past the Playpen, then the full Chicago River architecture route through the locks twice, with a pass by Monroe Harbor when time allows. Guided by Kenny, a Chicago tour guide with ten years of experience. From $750 for the boat.
+- [Sunset Cruise](https://lanchaboat.com/experiences/#sunset-cruise): about 2.5 hours, departing about 90 minutes before that day's sunset. From $400 Sunday through Wednesday, higher Thursday through Saturday.
+- [Soldier Field & Northerly Island Shuttle](https://lanchaboat.com/experiences/#soldier-field-shuttle): boat ride from Diversey Harbor to Burnham Harbor, a short walk from Soldier Field and the Northerly Island concert venue. From $350 there and $550 back.
+- [Boat Relocation](https://lanchaboat.com/experiences/#relocation): Captain Luis moves your boat from any harbor to any marina in the Chicago area. $475 plus rideshare to and from the boat.
+
+## Where we go
+- [The Playpen](https://lanchaboat.com/where-we-go/playpen/): Chicago's boat-party anchorage off Ohio Street Beach, about 10 to 15 minutes from Diversey Harbor.
+- [South Loop & Museum Campus](https://lanchaboat.com/where-we-go/south-loop/): the classic head-on view of the Chicago skyline.
+- [Navy Pier](https://lanchaboat.com/where-we-go/navy-pier/): the pier from the water, plus summer fireworks.
+- [Burnham Harbor & Northerly Island](https://lanchaboat.com/where-we-go/burnham/): calmer, protected water with skyline and Museum Campus views.
+- [The Chicago River](https://lanchaboat.com/where-we-go/the-river/): calm-water architecture cruising through downtown.
+
+## Other pages
+- [Chicago Notice to Mariners](https://lanchaboat.com/notices/): current U.S. Coast Guard and Chicago Harbor Safety Committee notices filtered for Chicago waters, refreshed every 15 minutes. Free for any boater.
+- [Crew](https://lanchaboat.com/crew/): the captains, guide, and deckhands.
