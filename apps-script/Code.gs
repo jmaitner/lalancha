@@ -77,7 +77,7 @@ const CONFIG = {
   // deployment for its version and compares: the editor runs HEAD while /exec
   // serves the last DEPLOYED version, so the two drift apart silently every
   // time code is pasted without redeploying.
-  CODE_VERSION: '2026-09-29.2',
+  CODE_VERSION: '2026-09-29.3',
   STRIPE_INVOICE_URL: 'https://dashboard.stripe.com/invoices/create',
   // Automatic Stripe invoicing. OFF until a restricted API key is stored in
   // Script Properties as STRIPE_SECRET_KEY (Project Settings > Script Properties).
@@ -714,7 +714,7 @@ function experienceMap_() {
     out[d.id] = { id: d.id, name: d.name, price: d.price, peakPrice: d.peakPrice, peakDays: d.peakDays,
                   hours: d.hours, maxGuests: '', active: true, holdsBoat: d.holdsBoat };
   });
-  var sh = openSS_().getSheetByName('Experiences');
+  var sh = openSS_().getSheetByName('Experiences') || ensureExperiencesTab_();
   if (!sh) return out;
   var rows = sh.getDataRange().getValues(), H = HEADERS.Experiences;
   var col = function (r, k) { return rows[r][H.indexOf(k)]; };
@@ -813,6 +813,24 @@ function seedExperiences_(ss) {
   sh.getRange(2, a, Math.max(sh.getLastRow() - 1, 1)).insertCheckboxes();
   sh.getRange(2, HEADERS.Experiences.indexOf('Price') + 1, Math.max(sh.getMaxRows() - 1, 1), 2)
     .setNumberFormat('$#,##0');
+}
+
+/**
+ * Self-setup: the first request that finds no Experiences tab builds it (and the
+ * Bookings Experience column), so nobody has to remember to run setupExperiences.
+ * Locked so two visitors arriving at once cannot build it twice.
+ */
+function ensureExperiencesTab_() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return null;
+  try {
+    var ss = openSS_();
+    if (!ss.getSheetByName('Experiences')) { migrateToOfferFlow(); seedExperiences_(ss); }
+    return ss.getSheetByName('Experiences');
+  } catch (err) {
+    Logger.log('ensureExperiencesTab_: ' + err);
+    return null;
+  } finally { lock.releaseLock(); }
 }
 
 /**
