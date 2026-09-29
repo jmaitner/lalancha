@@ -10,8 +10,8 @@ const description =
   <section class="wrap intro-sec">
     <p class="kicker">Chicago · Lake Michigan</p>
     <h1>Notice to Mariners</h1>
-    <p class="lede">A live aggregator of the Coast Guard broadcast and local notices, plus other
-      relevant Chicago harbor feeds, pulled together in one place for the water we run.</p>
+    <p class="lede">A live aggregator of the Coast Guard's Broadcast and Local Notices to Mariners, plus
+      other relevant Chicago harbor feeds, pulled together in one place for the water we run.</p>
     <p class="hero-credit">Brought to you by
       <a href="https://www.instagram.com/luisvecchio/" target="_blank" rel="noopener">Capt. Luis G. Vecchio</a>
       and <a href="https://www.instagram.com/lanchaboats/" target="_blank" rel="noopener">lanchaboats</a></p>
@@ -25,10 +25,10 @@ const description =
       <!-- intro callout -->
       <div class="callout">
         <p class="callout-head">Why this page exists</p>
-        <p class="callout-body">The broadcast and local notices cover the entire Great Lakes. The Lake
-          Michigan one alone can run over 50 pages. You don't need a new buoy in Holland to run Chicago.
-          This pulls only what touches our water: the harbors, the lakefront, and the river. It's live, and
-          refreshes every 15 minutes.</p>
+        <p class="callout-body">The Broadcast and Local Notices to Mariners cover the entire Great Lakes.
+          The Lake Michigan one alone can run over 50 pages. You don't need to know about a new buoy in
+          Holland for your day to day in Chicago. This pulls only what touches our water: the harbors, the
+          lakefront, and the river. It's live, and refreshes every 15 minutes.</p>
         <p class="callout-fine muted">lancha boat runs this page independently of the U.S. Coast Guard. Always
           confirm critical navigation information with
           <a href="https://www.navcen.uscg.gov/" target="_blank" rel="noopener">official Coast Guard sources</a>.</p>
@@ -89,14 +89,28 @@ const description =
       }
       if (!list.length) { feed.innerHTML = `<p class="feed-msg muted">No ${current} notices right now.</p>`; return; }
       feed.innerHTML = list.map((n) => {
-        let when = '';
-        try { when = dtf.format(new Date(n.publishedAt)); } catch (e) {}
         const badge = n.source === 'CHSC' ? 'Harbor' : (n.source === 'LNM' ? 'LNM' : 'BNM');
         const cat = n.category ? ` · ${esc(n.category)}` : '';
         const cancelled = n.status === 'cancelled';
+        // The event date from the notice text; fall back to when it was posted.
+        let when = '';
+        if (n.effectiveAt) {
+          try {
+            when = dayf.format(new Date(n.effectiveAt));
+            if (n.expiresAt && new Date(n.expiresAt).toDateString() !== new Date(n.effectiveAt).toDateString()) {
+              when += ' to ' + dayf.format(new Date(n.expiresAt));
+            }
+          } catch (e) { when = ''; }
+        }
+        let posted = '';
+        try { posted = dtf.format(new Date(n.publishedAt)); } catch (e) {}
+        const dateLine = when
+          ? `<p class="notice-when"><span>When</span> ${esc(when)}</p>`
+          : (posted ? `<p class="notice-when"><span>Posted</span> ${esc(posted)}</p>` : '');
         return `<article class="notice${cancelled ? ' is-cancelled' : ''}">
           <h3>${esc(n.title)}</h3>
-          <p class="notice-meta"><span class="src ${badge.toLowerCase()}">${badge}</span>${cat} · ${esc(when)}${cancelled ? ' · <span class="canc-badge">Cancelled</span>' : ''}</p>
+          <p class="notice-meta"><span class="src ${badge.toLowerCase()}">${badge}</span>${cat}${cancelled ? ' · <span class="canc-badge">Cancelled</span>' : ''}</p>
+          ${dateLine}
           ${n.summary ? `<p class="notice-sum">${esc(n.summary)}</p>` : ''}
           ${n.area ? `<p class="notice-area"><span>Area</span> ${esc(n.area)}</p>` : ''}
           ${n.officialUrl ? `<a class="notice-link" href="${esc(n.officialUrl)}" target="_blank" rel="noopener">View official notice →</a>` : ''}
@@ -174,6 +188,8 @@ const description =
     #feed .notice:last-child { border-bottom: none; }
     #feed .notice h3 { font-size: 18px; font-weight: 800; margin: 0 0 6px; line-height: 1.2; }
     #feed .notice-meta { font-size: 12px; color: #8a8470; margin: 0 0 8px; display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+    #feed .notice-when { font-size: 14px; margin: 0 0 8px; color: var(--ink); font-weight: 700; }
+    #feed .notice-when span { font-weight: 700; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; color: var(--blue); margin-right: 6px; }
     #feed .src { font-family: var(--display); font-weight: 700; font-size: 11px; letter-spacing: .05em;
                  padding: 2px 8px; border-radius: 999px; border: 2px solid var(--ink); margin-right: 6px; }
     #feed .src.bnm { background: var(--magenta); color: var(--cream); }
