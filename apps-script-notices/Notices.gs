@@ -43,6 +43,10 @@ var NOTICES_CFG = {
   // Official USCG NAVCEN GovDelivery RSS feeds.
   BNM_RSS_URL: 'https://public.govdelivery.com/topics/USDHSCG_523/feed.rss', // Sector Lake Michigan BNM (individual notices)
   LNM_RSS_URL: 'https://public.govdelivery.com/topics/USDHSCG_94/feed.rss',  // Ninth District LNM (weekly PDF pointers)
+  // Chicago Harbor Safety Committee news (Wix blog RSS). Every post is Chicago by
+  // definition — boat run schedule, bridge lifts, harbor projects — so no filtering.
+  CHS_RSS_URL: 'https://www.chicagoharborsafety.org/blog-feed.xml',
+  CHS_MAX_SHOWN: 10, // evergreen: surface the latest N committee posts regardless of age
 
   RETENTION_DAYS: 30,
   POLL_MINUTES: 15,
@@ -97,7 +101,7 @@ function ensureIngestTrigger_() {
 
 /** Trigger target: fetch feeds, classify, upsert. Failure-safe per source. */
 function ingestNotices() {
-  var summary = { ok: true, bnm: null, lnm: null, bnmError: null, lnmError: null };
+  var summary = { ok: true, bnm: null, lnm: null, chs: null, bnmError: null, lnmError: null, chsError: null };
   // BNM — the primary, fully-parsed source.
   try {
     var raw = fetchFeed_(NOTICES_CFG.BNM_RSS_URL);
@@ -129,6 +133,17 @@ function ingestNotices() {
     summary.lnmError = String((err && err.stack) || err);
     Logger.log('Notices LNM fetch FAILED (keeping existing): ' + err);
   }
+  // CHSC — Chicago Harbor Safety Committee. Every post is Chicago-relevant.
+  try {
+    var chs = fetchFeed_(NOTICES_CFG.CHS_RSS_URL).map(normalizeChsc_);
+    upsertNotices_(chs);
+    PROPS.setProperty('NOTICES_LAST_CHS_SYNC', new Date().toISOString());
+    summary.chs = chs.length;
+    Logger.log('Notices CHSC: fetched %s posts', chs.length);
+  } catch (err) {
+    summary.chsError = String((err && err.stack) || err);
+    Logger.log('Notices CHSC fetch FAILED (keeping existing): ' + err);
+  }
   pruneRetention_();
   return summary;
 }
@@ -137,16 +152,16 @@ function ingestNotices() {
 function getNoticesPayload_() {
   var rows = loadNotices_();
   var cutoff = Date.now() - NOTICES_CFG.RETENTION_DAYS * 864e5;
+  var chsSeen = 0;
   var out = rows
-    .filter(function (n) {
-      // Keep active AND cancelled Chicago notices within the 30-day window — a
-      // cancelled event is still a data point ("that swim on the 25th is off").
-      // Only the bare CANCELLATION pointers (never stored as rows) are dropped.
-      return n.chicagoRelevant === true &&
-        n.status !== 'cancellation' &&
-        (new Date(n.publishedAt).getTime() || 0) >= cutoff;
-    })
+    .filter(function (n) { return n.chicagoRelevant === true && n.status !== 'cancellation'; })
     .sort(function (a, b) { return new Date(b.publishedAt) - new Date(a.publishedAt); })
+    .filter(function (n) {
+      // BNM/LNM: 30-day window (cancelled ones stay — "that swim on the 25th is off"
+      // is still a data point). CHSC: evergreen — latest N committee posts, any age.
+      if (n.source === 'CHSC') { chsSeen++; return chsSeen <= NOTICES_CFG.CHS_MAX_SHOWN; }
+      return (new Date(n.publishedAt).getTime() || 0) >= cutoff;
+    })
     .map(function (n) {
       return {
         id: n.id, source: n.source, officialNoticeId: n.officialNoticeId,
@@ -208,6 +223,23 @@ function normalizeBnm_(raw) {
     status: c.status, chicagoRelevant: c.rel, relevanceReason: c.reason,
     relevanceConfidence: c.conf || '', createdAt: nowIso, updatedAt: nowIso,
     _cancelNumber: c.status === 'cancellation' ? officialNoticeId : '',
+  };
+}
+
+/** Normalize one Chicago Harbor Safety Committee post. All are Chicago-relevant. */
+function normalizeChsc_(raw) {
+  var body = _stripHtml(raw.description);
+  var summary = body.length > NOTICES_CFG.MAX_SUMMARY ? body.slice(0, NOTICES_CFG.MAX_SUMMARY).replace(/\s\S*$/, '') + '…' : body;
+  var nowIso = new Date().toISOString();
+  return {
+    id: 'chsc-' + (raw.guid || raw.link || raw.title),
+    source: 'CHSC', officialNoticeId: '',
+    category: 'Harbor Safety Committee', geographicArea: 'Chicago Harbor',
+    title: raw.title, displayTitle: raw.title, // committee posts already have human titles
+    summary: summary, officialUrl: raw.link,
+    publishedAt: safeIso_(raw.pubDate), effectiveAt: '', expiresAt: '',
+    status: 'active', chicagoRelevant: true, relevanceReason: 'Chicago Harbor Safety Committee post',
+    relevanceConfidence: '', createdAt: nowIso, updatedAt: nowIso,
   };
 }
 
@@ -349,8 +381,14 @@ function applyCancellations_(cancellations) {
 function pruneRetention_() {
   var cutoff = Date.now() - (NOTICES_CFG.RETENTION_DAYS + 1) * 864e5;
   var rows = loadNotices_();
+  // CHSC posts are evergreen — keep the latest 25 by date, drop older ones only.
+  var chsKeep = {};
+  rows.filter(function (r) { return r.source === 'CHSC'; })
+    .sort(function (a, b) { return new Date(b.publishedAt) - new Date(a.publishedAt); })
+    .slice(0, 25).forEach(function (r) { chsKeep[r.id] = true; });
   var kept = rows.filter(function (r) {
     if (r.id === 'lnm-weekly-current') return true; // always keep the LNM reference
+    if (r.source === 'CHSC') return !!chsKeep[r.id];  // evergreen, capped at latest 25
     return (new Date(r.publishedAt).getTime() || Date.now()) >= cutoff;
   });
   if (kept.length !== rows.length) saveNotices_(kept);

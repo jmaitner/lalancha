@@ -23,12 +23,13 @@ const description =
           district</strong> — every harbor from Wisconsin to Indiana, plus the industrial rivers — as one
           raw stream of bulletins. Finding the handful that actually affect a day on the water in Chicago
           means reading through all of it, every time. This page does that for you: it checks the official
-          feed every 15 minutes and surfaces <strong>only</strong> what touches Chicago's harbors, the
-          lakefront, and the river — so you can glance at one short list before you leave the dock instead
-          of combing the whole district.</p>
+          feed every 15 minutes — plus the Chicago Harbor Safety Committee's own bulletins — and surfaces
+          <strong>only</strong> what touches Chicago's harbors, the lakefront, and the river, so you can
+          glance at one short list before you leave the dock instead of combing the whole district.</p>
         <p class="callout-fine">
-          <strong>BNM</strong> — time-sensitive navigation and safety notices.
+          <strong>BNM</strong> — time-sensitive Coast Guard navigation and safety notices.
           <strong>LNM</strong> — the Coast Guard's broader weekly navigation notice.
+          <strong>Harbor</strong> — Chicago Harbor Safety Committee posts (boat run, bridge lifts, projects).
         </p>
         <p class="callout-fine muted">Independent aggregator. Always verify critical navigation information with
           <a href="https://www.navcen.uscg.gov/" target="_blank" rel="noopener">official U.S. Coast Guard sources</a>.</p>
@@ -39,6 +40,7 @@ const description =
         <button class="nfilter is-on" data-src="all" type="button">All</button>
         <button class="nfilter" data-src="BNM" type="button">BNM</button>
         <button class="nfilter" data-src="LNM" type="button">LNM</button>
+        <button class="nfilter" data-src="CHSC" type="button">Harbor</button>
         <span class="updated muted" id="updated"></span>
       </div>
 
@@ -88,7 +90,7 @@ const description =
       feed.innerHTML = list.map((n) => {
         let when = '';
         try { when = dtf.format(new Date(n.publishedAt)); } catch (e) {}
-        const badge = n.source === 'LNM' ? 'LNM' : 'BNM';
+        const badge = n.source === 'CHSC' ? 'Harbor' : (n.source === 'LNM' ? 'LNM' : 'BNM');
         const cat = n.category ? ` · ${esc(n.category)}` : '';
         const cancelled = n.status === 'cancelled';
         return `<article class="notice${cancelled ? ' is-cancelled' : ''}">
@@ -159,6 +161,7 @@ const description =
            padding: 2px 8px; border-radius: 999px; border: 2px solid var(--ink); margin-right: 6px; }
     .src.bnm { background: var(--magenta); color: var(--cream); }
     .src.lnm { background: var(--gold); color: var(--ink); }
+    .src.harbor { background: var(--blue); color: var(--cream); }
     .notice-sum { font-size: 14px; line-height: 1.55; margin: 0 0 8px; }
     .notice-area { font-size: 13px; margin: 0 0 8px; color: var(--ink); }
     .notice-area span { font-weight: 700; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; color: #8a8470; margin-right: 4px; }
