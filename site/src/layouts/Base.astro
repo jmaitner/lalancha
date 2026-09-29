@@ -41,6 +41,7 @@ const ogImage = image.startsWith('http') ? image : new URL(image, base).href;
       </a>
       <nav>
         <a href="/#how">How it works</a>
+        <a class="nav-keep" href="/experiences">Experiences</a>
         <div class="dropdown">
           <a class="dropbtn" href="/crew" aria-haspopup="true">Crew<span class="caret" aria-hidden="true">▾</span></a>
           <div class="dropdown-menu">
@@ -60,7 +61,7 @@ const ogImage = image.startsWith('http') ? image : new URL(image, base).href;
     <footer class="footer">
       <div class="foot-logo"><img src="/brand/logolockup_bazooka.svg" alt="lancha boat" class="logo-svg logo-svg--footer" width="211" height="59" /></div>
       <p>Private charters aboard <em>Quarters</em> · Diversey Harbor · K-Dock, Slip 8 · Chicago</p>
-      <p class="muted">Operated under a bareboat / demise charter model in compliance with USCG vessel safety standards.</p>
+      <p class="muted">Operated as a bareboat (demise) charter in compliance with U.S. Coast Guard vessel safety standards.</p>
       <span class="builtby">
         <span class="builtby-label">Built by</span>
         <img class="rr-logo" src="/road-ready-safety.png" alt="Road Ready Safety" width="140" height="35" />
@@ -196,10 +197,19 @@ const ogImage = image.startsWith('http') ? image : new URL(image, base).href;
       @media (max-width: 640px) {
         .nav { padding: 12px 16px; }
         .nav nav { gap: 12px; }
-        .nav nav a:not(.btn) { display: none; }
+        .nav nav a:not(.btn):not(.nav-keep) { display: none; }
+        .nav nav a.nav-keep { font-size: 14px; }
+        .nav nav a { white-space: nowrap; }
+        .nav .btn-sm { padding: 8px 14px; }
         .dropdown { display: none; }
-        .logo-svg { height: 36px; }
+        .logo-svg { height: 30px; width: auto; }
         .ticker-track { font-size: 12px; }
+      }
+      @media (max-width: 360px) {
+        .nav nav { gap: 8px; }
+        .logo-svg { height: 26px; }
+        .nav nav a.nav-keep { font-size: 13px; }
+        .nav .btn-sm { padding: 7px 10px; font-size: 13px; }
       }
     </style>
   </body>

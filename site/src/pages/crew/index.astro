@@ -2,9 +2,9 @@
 import Base from '../../layouts/Base.astro';
 import { captainPeople, crewPeople, type Person } from '../../people.ts';
 
-const title = 'Our Crew · Captains, Deck Hands & Dock Attendants | lancha boat';
+const title = 'Our Crew · Captains & Deckhands | lancha boat';
 const description =
-  'Meet the crew behind Quarters: USCG-licensed captains, plus the deck hands and dock attendants who keep your private Chicago boat charter running smooth.';
+  'Meet the crew behind Quarters: U.S. Coast Guard-licensed captains and the deckhands who keep your private Chicago boat charter running smoothly.';
 
 const firstSrc = (p: Person): string | undefined => {
   const first = p.photos[0];
@@ -17,15 +17,15 @@ const firstSrc = (p: Person): string | undefined => {
   <section class="wrap crew-hero">
     <p class="kicker">ABOARD QUARTERS</p>
     <h1>Meet the <span class="scr">crew</span></h1>
-    <p class="lede">The people who make your day on the water easy: licensed captains who keep you safe,
-      plus the deckhands who make everything go.</p>
+    <p class="lede">The people who make your day on the water easy: licensed captains who keep you safe
+      and deckhands who keep everything moving.</p>
   </section>
 
   <!-- CAPTAINS -->
   <section class="wrap crew-sec">
     <div class="sec-top">
       <h2 class="sec-head">Captains</h2>
-      <p class="sec-blurb">USCG-licensed, at the helm.</p>
+      <p class="sec-blurb">U.S. Coast Guard-licensed &amp; at the helm.</p>
     </div>
     <div class="crew-grid">
       {captainPeople.map((p) => (
@@ -53,7 +53,7 @@ const firstSrc = (p: Person): string | undefined => {
   <section class="wrap crew-sec">
     <div class="sec-top">
       <h2 class="sec-head">The rest of the crew</h2>
-      <p class="sec-blurb">The deckhands who keep every charter running, dock to deck.</p>
+      <p class="sec-blurb">The guides and deckhands who keep every trip running, dock to deck.</p>
     </div>
     {crewPeople.length > 0 ? (
       <div class="crew-grid">

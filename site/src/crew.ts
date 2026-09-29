@@ -26,6 +26,21 @@ export interface CrewGroup {
 
 export const crewGroups: CrewGroup[] = [
   {
+    role: 'Tour Guide',
+    plural: 'Tour Guides',
+    blurb: 'The voice of the Lake & River Architecture Tour.',
+    members: [
+      {
+        slug: 'kenny',
+        name: 'Kenny',
+        // TODO(Luis): last name + a photo (drop kenny-1.jpg in /public/images, set photo: 'kenny-1').
+        blurb: 'A decade of telling this city\'s best stories.',
+        bio: "Kenny has spent the last ten years showing people Chicago and making them fall for it. He knows which building has the gossip, which bridge has the history, and exactly when to stop talking so you can take the picture. He runs the architecture tour on Quarters, and he's the reason nobody on it ends up staring at their phone.",
+        stats: ['10 Years Guiding', 'Architecture Tour', 'Chicago Stories'],
+      },
+    ],
+  },
+  {
     // Dock + deck merged into one role (Luis's call).
     role: 'Deckhand',
     plural: 'Deckhands',
@@ -36,8 +51,8 @@ export const crewGroups: CrewGroup[] = [
         name: 'Evan Richards',
         blurb: "New to boats, and the first face you'll meet at the dock.",
         photo: 'evan-1',
-        bio: "Evan is new to boats and an engineer by trade, and he's the friendly face you'll almost certainly meet at the dock before and after your charter, so say hi. He's learning a ton and taking on more and more responsibility, which is a nice way of saying he gets handed more and more. He's also open to a few shifts as a deck hand if you'd like him out on the water with you.",
-        stats: ['Drivers License', 'Better at Hockey', 'First Aid', 'Stop the Bleed'],
+        bio: "Evan is an engineer by trade and new to boats, and he's the face you'll most likely meet at the dock before and after your charter, so say hi. He's learning fast and taking on more responsibility, which is a nice way of saying he keeps getting handed more stuff. He's also up for a few shifts as a deckhand if you'd like him out on the water with you.",
+        stats: ["Driver's License", 'Better at Hockey', 'First Aid', 'Stop the Bleed'],
       },
     ],
   },

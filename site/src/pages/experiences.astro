@@ -1,0 +1,401 @@
+---
+import Base from '../layouts/Base.astro';
+import { ENDPOINT, MAX_PARTY } from '../config.ts';
+import { experiences, SUNSET_LEAD_MIN } from '../experiences.ts';
+
+const title = 'Experiences · Architecture Tour, Sunset Cruise & Game Day Shuttle | lancha boat';
+const description =
+  'Crewed trips aboard Quarters from Diversey Harbor: a private lake and river architecture tour, a sunset cruise timed to the sun, a shuttle to Soldier Field and Northerly Island concerts, and boat relocation across Chicagoland.';
+---
+<Base title={title} description={description}>
+  <section class="wrap intro-sec">
+    <p class="kicker">Crewed by us · Fuel included</p>
+    <h1>Experiences</h1>
+    <p class="lede">Sometimes you want the boat. Sometimes you want the whole day handled. These are trips
+      we run for you, so all you bring is your people and your drinks.</p>
+  </section>
+
+  <section class="wrap xp-list">
+    {experiences.map((x) => (
+      <article class="card xp" id={x.slug} data-slug={x.slug}>
+        <img class="xp-photo" src={`/images/${x.photo}.jpg`} alt={x.title} loading="lazy" />
+        <div class="xp-body">
+          <p class="xp-kicker">{x.kicker}</p>
+          <h2>{x.title}</h2>
+          <p class="xp-tag">{x.tagline}</p>
+          <p class="xp-price" data-price-for={x.slug}>&nbsp;</p>
+          {x.body.map((p) => <p>{p}</p>)}
+          <ul class="xp-bullets">{x.bullets.map((b) => <li>{b}</li>)}</ul>
+          <button type="button" class="btn" data-pick={x.slug}>Request this →</button>
+        </div>
+      </article>
+    ))}
+  </section>
+
+  <!-- REQUEST FORM -->
+  <section class="wrap" id="request">
+    <div class="card req">
+      <h2>Request a trip</h2>
+      <p class="muted">We hold your time and answer the same day. Nothing is charged until we confirm.</p>
+
+      <div class="chips" role="radiogroup" aria-label="Experience">
+        {experiences.map((x, i) => (
+          <label class="chip"><input type="radio" name="xp" value={x.slug} checked={i === 0} /><span>{x.title}</span></label>
+        ))}
+      </div>
+
+      <label class="fld">Date<input type="date" id="date" /></label>
+
+      <!-- time: pick -->
+      <div data-mode="pick">
+        <label class="fld">Start time <span class="muted">(flexible, tell us what works)</span>
+          <input type="time" id="start" value="10:00" step="900" />
+        </label>
+      </div>
+
+      <!-- time: sunset -->
+      <div data-mode="sunset">
+        <p class="note" id="sunset-note">Pick a date and we'll set your start time to that night's sunset.</p>
+      </div>
+
+      <!-- time: shuttle -->
+      <div data-mode="shuttle">
+        <div class="seg" role="radiogroup" aria-label="Which ride">
+          <label><input type="radio" name="dir" value="round" checked /><span>Round trip</span></label>
+          <label><input type="radio" name="dir" value="there" /><span>There</span></label>
+          <label><input type="radio" name="dir" value="back" /><span>Back</span></label>
+        </div>
+        <label class="fld">What are you going to? <span class="muted">(optional)</span>
+          <input id="event" placeholder="Bears vs. Packers, a Northerly Island concert…" />
+        </label>
+        <div class="row">
+          <label class="fld" data-leg="there">Leave Diversey Harbor at
+            <input type="time" id="leave" step="900" />
+            <span class="muted">We suggest two hours before kickoff or showtime.</span>
+          </label>
+          <label class="fld" data-leg="back">Pick up at Burnham Harbor at
+            <input type="time" id="pickup" step="900" />
+            <span class="muted">Roughly when it ends. We'll firm it up with you.</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- relocation -->
+      <div data-mode="none">
+        <div class="row">
+          <label class="fld">Moving from<input id="from" placeholder="Harbor or marina" /></label>
+          <label class="fld">Moving to<input id="to" placeholder="Harbor or marina" /></label>
+        </div>
+        <label class="fld">The boat<input id="boat" placeholder="Year, make, model, and length" /></label>
+      </div>
+
+      <div class="row">
+        <label class="fld">First name<input id="firstName" autocomplete="given-name" /></label>
+        <label class="fld">Last name<input id="lastName" autocomplete="family-name" /></label>
+      </div>
+      <div class="row">
+        <label class="fld">Email<input id="email" type="email" autocomplete="email" /></label>
+        <label class="fld">Cell<input id="phone" type="tel" inputmode="tel" autocomplete="tel" /></label>
+      </div>
+      <label class="fld" id="party-wrap">Party size<select id="party"></select></label>
+      <label class="fld">Anything we should know? <span class="muted">(optional)</span>
+        <textarea id="message" rows="3" placeholder="What it's for, questions, special requests…"></textarea>
+      </label>
+
+      <dl class="review" id="summary"></dl>
+      <p class="form-msg err" id="conflict"></p>
+      <button class="btn pink" id="submit">Send request ⚓</button>
+      <p id="result" class="form-msg"></p>
+    </div>
+  </section>
+
+  <script define:vars={{ ENDPOINT, MAX_PARTY, EXPS: experiences, SUNSET_LEAD_MIN }}>
+    const $ = (id) => document.getElementById(id);
+    const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const HOLDS_BOAT = (id) => id !== 'relocation';
+
+    // Live numbers from the Experiences tab. Seeded with the fallbacks so the
+    // page still works if the sheet cannot be reached.
+    const live = {};
+    EXPS.forEach((x) => Object.entries(x.fallback).forEach(([id, f]) => {
+      live[id] = { basePrice: f.price, peakPrice: f.peakPrice ?? null,
+                   peakDays: (f.peakDays || []).map((d) => DAYS.indexOf(d)), hours: f.hours ?? null,
+                   maxGuests: null, active: true };
+    }));
+    let busy = [];
+    let sunsetStart = null;   // 'HH:mm' for the chosen date
+
+    const money = (n) => '$' + Number(n).toLocaleString('en-US');
+    const joinDays = (a) => a.map((i) => DAYS[i]).join(a.length > 2 ? ', ' : ' & ').replace(/, (\w+)$/, ', & $1');
+    const toMin = (hhmm) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
+    const fmt = (min) => {
+      min = ((min % 1440) + 1440) % 1440;
+      const h = Math.floor(min / 60), m = String(min % 60).padStart(2, '0');
+      return ((h % 12) || 12) + ':' + m + (h < 12 ? ' AM' : ' PM');
+    };
+    // Same rule as priceForDate_ in Code.gs, which has the final say on submit.
+    const priceOn = (id, date) => {
+      const e = live[id];
+      const dow = date ? new Date(date + 'T12:00').getDay() : -1;
+      return e.peakPrice && e.peakDays.includes(dow) ? e.peakPrice : e.basePrice;
+    };
+    const cur = () => EXPS.find((x) => x.slug === document.querySelector('input[name=xp]:checked').value);
+
+    // ── prices on the cards ──────────────────────────────────────────────
+    function paintPrices() {
+      EXPS.forEach((x) => {
+        const el = document.querySelector(`[data-price-for="${x.slug}"]`);
+        const on = x.legs.filter((id) => live[id] && live[id].active);
+        const card = $(x.slug), chip = document.querySelector(`input[name=xp][value="${x.slug}"]`).closest('.chip');
+        card.hidden = chip.hidden = on.length === 0;
+        if (!on.length) return;
+        if (x.time === 'shuttle') {
+          el.textContent = on.map((id) => money(live[id].basePrice) + (id.endsWith('there') ? ' there' : ' back')).join(' · ');
+          return;
+        }
+        const l = live[on[0]];
+        el.textContent = money(l.basePrice) + (x.priceNote ? ' ' + x.priceNote : '') +
+          (l.peakPrice ? ` · ${money(l.peakPrice)} on ${joinDays(l.peakDays)}` : '');
+      });
+    }
+
+    async function loadLive(date) {
+      try {
+        const res = await fetch(ENDPOINT + '?action=experiences' + (date ? '&date=' + encodeURIComponent(date) : ''));
+        const out = await res.json();
+        if (!out.ok) return;
+        (out.experiences || []).forEach((e) => {
+          live[e.id] = { basePrice: e.basePrice, peakPrice: e.peakPrice,
+                         peakDays: e.peakDays || [], hours: e.hours, maxGuests: e.maxGuests, active: e.active };
+        });
+        busy = out.busy || [];
+      } catch (e) { /* fallbacks stand */ }
+    }
+
+    // ── sunset (NOAA almanac formula, Diversey Harbor) ───────────────────
+    function sunsetChicago(dateStr) {
+      const LAT = 41.93, LNG = -87.63, rad = Math.PI / 180;
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const N = Math.round((Date.UTC(y, m - 1, d) - Date.UTC(y, 0, 0)) / 864e5);
+      const lngHour = LNG / 15, t = N + (18 - lngHour) / 24;
+      const M = 0.9856 * t - 3.289;
+      const L = (M + 1.916 * Math.sin(M * rad) + 0.020 * Math.sin(2 * M * rad) + 282.634 + 360) % 360;
+      let RA = (Math.atan(0.91764 * Math.tan(L * rad)) / rad + 360) % 360;
+      RA = (RA + Math.floor(L / 90) * 90 - Math.floor(RA / 90) * 90) / 15;
+      const sinDec = 0.39782 * Math.sin(L * rad), cosDec = Math.cos(Math.asin(sinDec));
+      const cosH = (Math.cos(90.833 * rad) - sinDec * Math.sin(LAT * rad)) / (cosDec * Math.cos(LAT * rad));
+      const H = Math.acos(cosH) / rad / 15;
+      let UT = (H + RA - 0.06571 * t - 6.622 - lngHour + 48) % 24;
+      if (UT < 12) UT += 24;   // Chicago sunsets fall after midnight UTC half the year
+      const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' })
+        .formatToParts(new Date(Date.UTC(y, m - 1, d) + UT * 36e5));
+      return Number(p.find((x) => x.type === 'hour').value) * 60 + Number(p.find((x) => x.type === 'minute').value);
+    }
+
+    // ── what is being requested ──────────────────────────────────────────
+    function legs() {
+      const x = cur();
+      if (x.time === 'pick') return [{ id: x.legs[0], start: $('start').value }];
+      if (x.time === 'sunset') return [{ id: x.legs[0], start: sunsetStart || '' }];
+      if (x.time === 'shuttle') {
+        const dir = document.querySelector('input[name=dir]:checked').value;
+        const out = [];
+        if (dir !== 'back') out.push({ id: 'shuttle-there', start: $('leave').value });
+        if (dir !== 'there') out.push({ id: 'shuttle-back', start: $('pickup').value });
+        return out;
+      }
+      return [{ id: x.legs[0], start: '' }];
+    }
+
+    function conflicts(ls) {
+      return ls.some((l) => {
+        if (!HOLDS_BOAT(l.id) || !l.start || !live[l.id].hours) return false;
+        const s = toMin(l.start), e = s + live[l.id].hours * 60;
+        return busy.some(([bs, be]) => s < be && e > bs);
+      });
+    }
+
+    function render() {
+      const x = cur();
+      document.querySelectorAll('[data-mode]').forEach((el) => { el.hidden = el.dataset.mode !== x.time; });
+      $('party-wrap').hidden = !x.passengers;
+      if (x.time === 'shuttle') {
+        const dir = document.querySelector('input[name=dir]:checked').value;
+        document.querySelector('[data-leg=there]').hidden = dir === 'back';
+        document.querySelector('[data-leg=back]').hidden = dir === 'there';
+      }
+
+      // party size, capped only if Luis sets MaxGuests in the sheet
+      const cap = Math.min(MAX_PARTY, ...x.legs.map((id) => live[id].maxGuests || MAX_PARTY));
+      const sel = $('party'), was = Number(sel.value) || 6;
+      if (sel.options.length !== cap) {
+        sel.innerHTML = '';
+        for (let i = 1; i <= cap; i++) sel.add(new Option(i, i, false, i === Math.min(was, cap)));
+      }
+
+      const date = $('date').value;
+      if (x.time === 'sunset') {
+        if (date) {
+          const sun = sunsetChicago(date);
+          const start = Math.floor((sun - SUNSET_LEAD_MIN) / 15) * 15;
+          sunsetStart = String(Math.floor(start / 60)).padStart(2, '0') + ':' + String(start % 60).padStart(2, '0');
+          $('sunset-note').textContent = `Sunset that night is ${fmt(sun)}, so we push off at ${fmt(start)} ` +
+            `and you're back around ${fmt(start + (live['sunset-cruise'].hours || 2.5) * 60)}.`;
+        } else {
+          sunsetStart = null;
+          $('sunset-note').textContent = "Pick a date and we'll set your start time to that night's sunset.";
+        }
+      }
+
+      const ls = legs();
+      const rows = [];
+      if (date) rows.push(['Date', new Date(date + 'T12:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })]);
+      let total = 0;
+      ls.forEach((l) => {
+        const e = live[l.id];
+        const name = x.time === 'shuttle' ? (l.id.endsWith('there') ? 'Ride there' : 'Ride back') : x.title;
+        const when = l.start && e.hours ? `${fmt(toMin(l.start))} to ${fmt(toMin(l.start) + e.hours * 60)}` : '';
+        rows.push([name, [when, money(priceOn(l.id, date))].filter(Boolean).join(' · ')]);
+        total += Number(priceOn(l.id, date));
+      });
+      rows.push(['Total', money(total) + (x.priceNote === 'plus rideshare' ? ' plus rideshare' : '')]);
+      $('summary').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+
+      const clash = date && conflicts(ls);
+      $('conflict').textContent = clash ? "Quarters is already booked for part of that time. Try another time or date." : '';
+      $('submit').disabled = !!clash;
+      return { ls, total };
+    }
+
+    // ── wiring ───────────────────────────────────────────────────────────
+    const d = new Date(); d.setDate(d.getDate() + 1);
+    $('date').min = [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+    $('date').addEventListener('change', async () => {
+      $('conflict').textContent = 'Checking availability…';
+      await loadLive($('date').value);
+      render();
+    });
+    document.querySelectorAll('input, select, textarea').forEach((el) => el.addEventListener('input', render));
+    document.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => {
+      document.querySelector(`input[name=xp][value="${b.dataset.pick}"]`).checked = true;
+      render();
+      $('request').scrollIntoView({ behavior: 'smooth' });
+    }));
+    if (location.hash) {
+      const pre = document.querySelector(`input[name=xp][value="${location.hash.slice(1)}"]`);
+      if (pre) pre.checked = true;
+    }
+    render();
+    loadLive('').then(() => { paintPrices(); render(); });
+    paintPrices();
+
+    $('submit').addEventListener('click', async () => {
+      const x = cur(), msg = $('result');
+      const { ls } = render();
+      const first = $('firstName').value.trim(), last = $('lastName').value.trim();
+      const email = $('email').value.trim(), phone = $('phone').value.trim();
+      const fail = (t) => { msg.textContent = t; msg.className = 'form-msg err'; };
+      if (!$('date').value) return fail('Pick a date first.');
+      if (ls.some((l) => HOLDS_BOAT(l.id) && !l.start)) return fail('Add a time for each ride.');
+      if (x.time === 'none' && (!$('from').value.trim() || !$('to').value.trim())) return fail('Tell us where the boat is moving from and to.');
+      if (!first || !last || !email || !phone) return fail('Add your first name, last name, email, and cell number.');
+      if (phone.replace(/\D/g, '').length < 10) return fail('That cell number looks short. Include the area code.');
+
+      const details = x.time === 'none'
+        ? `From ${$('from').value.trim()} to ${$('to').value.trim()}` + ($('boat').value.trim() ? ` · ${$('boat').value.trim()}` : '')
+        : x.time === 'shuttle' ? $('event').value.trim() : '';
+
+      const btn = $('submit');
+      btn.disabled = true; msg.textContent = 'Sending…'; msg.className = 'form-msg';
+      try {
+        const res = await fetch(ENDPOINT, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action: 'newExperienceRequest', charterDate: $('date').value, legs: ls,
+            firstName: first, lastName: last, primaryName: first + ' ' + last,
+            primaryEmail: email, phone, partySize: x.passengers ? $('party').value : '',
+            message: $('message').value.trim(), details,
+          }),
+        });
+        const out = await res.json();
+        if (out.error === 'slot_taken') {
+          await loadLive($('date').value); render();
+          btn.disabled = false; return fail('Someone just took part of that time. Pick another time, and we will hold it for you.');
+        }
+        if (!out.ok) throw new Error(out.error);
+        document.querySelector('.req').innerHTML =
+          `<h2>Request sent ⚓</h2>
+           <p>Your reference is ${out.bookingId}. We're holding ${x.title} on ${$('date').value} for you
+           and will get back to you the same day.</p>
+           <p class="muted">Nothing is charged yet. Once we confirm, you'll get the details and an invoice for ${money(out.amount)}.</p>
+           <a class="btn" href="/">← Back to home</a>`;
+        $('request').scrollIntoView({ behavior: 'smooth' });
+      } catch (err) {
+        btn.disabled = false;
+        fail("We hit a snag sending your request. Email lalanchacharters@gmail.com, and we'll take it from there.");
+      }
+    });
+  </script>
+
+  <style>
+    .intro-sec { margin-top: 48px; }
+    .kicker { text-transform: uppercase; letter-spacing: .18em; font-weight: 700; font-size: 13px; color: var(--blue); margin: 0 0 12px; }
+    h1 { font-size: clamp(36px, 6vw, 64px); font-weight: 800; }
+    .lede { font-size: 19px; max-width: 620px; }
+
+    .xp-list { display: grid; gap: 28px; margin: 28px auto 40px; }
+    .xp { display: grid; grid-template-columns: 340px 1fr; gap: 26px; padding: 0; overflow: hidden; }
+    .xp[hidden] { display: none; }
+    .xp-photo { width: 100%; height: 100%; min-height: 280px; object-fit: cover; border-right: 2px solid var(--ink); }
+    .xp-body { padding: 24px 24px 24px 0; }
+    .xp-kicker { font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--magenta); margin: 0 0 6px; }
+    .xp h2 { font-size: clamp(24px, 4vw, 32px); font-weight: 800; margin: 0 0 6px; }
+    .xp-tag { font-size: 18px; font-weight: 600; margin: 0 0 10px; }
+    .xp-price { display: inline-block; font-family: var(--display); font-weight: 800; font-size: 18px; color: var(--ink);
+                background: var(--gold); border: 2px solid var(--ink); border-radius: 999px; padding: 5px 14px; margin: 0 0 12px; }
+    .xp-bullets { margin: 4px 0 18px; padding-left: 20px; }
+    .xp-bullets li { margin: 4px 0; }
+
+    .req { margin-bottom: 48px; }
+    .req h2 { font-size: clamp(24px, 4vw, 32px); font-weight: 800; }
+    .chips { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 20px; }
+    .chip[hidden] { display: none; }
+    .chip input, .seg input { position: absolute; opacity: 0; pointer-events: none; }
+    .chip span, .seg span { display: inline-block; cursor: pointer; font-family: var(--display); font-weight: 700; font-size: 14px;
+      padding: 10px 16px; border: 2.5px solid var(--ink); border-radius: 999px; background: #fff; box-shadow: 3px 3px 0 var(--ink); }
+    .chip input:checked + span, .seg input:checked + span { background: var(--blue); color: var(--cream); }
+    .chip input:focus-visible + span, .seg input:focus-visible + span { outline: 3px solid var(--magenta); outline-offset: 2px; }
+    .seg { display: flex; gap: 10px; margin: 0 0 16px; flex-wrap: wrap; }
+
+    [data-mode][hidden], .fld[hidden] { display: none; }
+    .note { font-family: var(--display); font-weight: 700; font-size: 15px; color: var(--blue); background: #eef0ff;
+            border: 2.5px solid var(--blue); border-radius: 14px; padding: 14px; margin: 0 0 16px; }
+
+    .fld { display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 16px; }
+    .fld .muted { font-weight: 500; }
+    .fld input, .fld select, .fld textarea {
+      padding: 14px; border: 2.5px solid var(--ink); border-radius: 12px; font-size: 16px; font-family: var(--sans);
+      color: var(--ink); background: #fff; box-shadow: 3px 3px 0 rgba(51,51,51,.15);
+    }
+    .fld input:focus, .fld select:focus, .fld textarea:focus { outline: none; border-color: var(--blue); box-shadow: 4px 4px 0 var(--blue); }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    .review { display: grid; grid-template-columns: 150px 1fr; gap: 10px 16px; margin: 8px 0 16px;
+              border: 2.5px solid var(--ink); border-radius: 14px; padding: 18px; background: #fff; }
+    .review:empty { display: none; }
+    .review dt { color: #8a8470; font-size: 14px; font-weight: 700; }
+    .review dd { margin: 0; font-weight: 700; color: var(--ink); }
+    .form-msg { margin-top: 14px; font-size: 15px; min-height: 18px; font-weight: 700; }
+    .form-msg.err { color: var(--magenta); }
+    #submit[disabled] { background: #d9d6c6; color: #8a8470; border-color: #b8b4a2; box-shadow: none; }
+
+    @media (max-width: 720px) {
+      .xp { grid-template-columns: 1fr; }
+      .xp-photo { min-height: 0; height: 240px; border-right: 0; border-bottom: 2px solid var(--ink); }
+      .xp-body { padding: 0 20px 22px; }
+      .row { grid-template-columns: 1fr; }
+      .review { grid-template-columns: 110px 1fr; }
+      #submit { width: 100%; }
+    }
+  </style>
+</Base>

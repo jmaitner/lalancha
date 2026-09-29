@@ -77,7 +77,7 @@ const CONFIG = {
   // deployment for its version and compares: the editor runs HEAD while /exec
   // serves the last DEPLOYED version, so the two drift apart silently every
   // time code is pasted without redeploying.
-  CODE_VERSION: '2026-09-09.1',
+  CODE_VERSION: '2026-09-29.1',
   STRIPE_INVOICE_URL: 'https://dashboard.stripe.com/invoices/create',
   // Automatic Stripe invoicing. OFF until a restricted API key is stored in
   // Script Properties as STRIPE_SECRET_KEY (Project Settings > Script Properties).
@@ -103,7 +103,20 @@ const CONFIG = {
 
   // Destination options on the post-charter report. ONLY 'Playpen' bills flat fuel.
   DESTINATIONS: ['Playpen', 'Navy Pier', 'Monroe/Playpen South', 'River',
-                 'Burnham/Northerly']
+                 'Burnham/Northerly'],
+
+  // --- Experiences (crewed trips Luis runs, plus relocation) ---
+  // These seed the Experiences tab and are the fallback for any blank cell in it.
+  // Luis edits prices in the sheet, not here. holdsBoat stays in code on purpose:
+  // switching it off in a sheet would let two trips double-book Quarters.
+  // Fuel is included on all of these, so the captain report bills $0 for them.
+  EXPERIENCES: [
+    { id: 'architecture-tour', name: 'Architecture tour',            price: 750, peakPrice: '',  peakDays: '',            hours: 3.5, holdsBoat: true },
+    { id: 'sunset-cruise',     name: 'Sunset cruise',                price: 400, peakPrice: 600, peakDays: 'Thu, Fri, Sat', hours: 2.5, holdsBoat: true },
+    { id: 'shuttle-there',     name: 'Game & concert shuttle, there', price: 350, peakPrice: '',  peakDays: '',            hours: 1.5, holdsBoat: true },
+    { id: 'shuttle-back',      name: 'Game & concert shuttle, back',  price: 550, peakPrice: '',  peakDays: '',            hours: 2,   holdsBoat: true },
+    { id: 'relocation',        name: 'Boat relocation',              price: 475, peakPrice: '',  peakDays: '',            hours: '',  holdsBoat: false }
+  ]
 };
 
 const PROPS = PropertiesService.getScriptProperties();
@@ -117,7 +130,9 @@ const HEADERS = {
              'Status', 'FolderURL', 'EventId', 'ReviewRequested', 'Notes',
              // Appended for the offer flow. Always add new columns at the END —
              // appendRow_/updateBooking_ map by position against the live sheet.
-             'GuestMessage', 'RespondedAt', 'InvoiceSent'],
+             'GuestMessage', 'RespondedAt', 'InvoiceSent',
+             // Blank for a standard bareboat charter; the experience id(s) otherwise.
+             'Experience'],
   Leads:    ['Created', 'Name', 'Email', 'Phone', 'Source', 'Interest',
              'Status', 'Notes'],
   Guests:   ['BookingID', 'GuestName', 'Email', 'IsPrimary', 'WaiverSent',
@@ -125,6 +140,10 @@ const HEADERS = {
   Captains: ['Name', 'Email', 'Phone', 'LicenseInfo', 'Notes'],
   // Per-date price overrides. Leave a cell blank to fall back to DEFAULT_BLOCK_PRICE.
   Pricing:  ['Date', 'MorningPrice', 'AfternoonPrice', 'NightPrice', 'Note'],
+  // One row per bookable experience. The site reads this live. PeakPrice applies
+  // on PeakDays (e.g. "Thu, Fri, Sat"); blank MaxGuests = no cap shown.
+  Experiences: ['ID', 'Name', 'Price', 'PeakPrice', 'PeakDays', 'Hours', 'MaxGuests',
+                'Active', 'Note'],
   CaptainReports: []  // built automatically from the linked Google Form
 };
 
@@ -147,6 +166,7 @@ function setupLaLanchaSystem() {
   });
   removeDefaultSheet_(ss);
   seedCaptains_(ss);
+  seedExperiences_(ss);
 
   const inquiryForm = getOrCreateInquiryForm_(root, ss);
   const captainForm = getOrCreateCaptainForm_(root, ss);
@@ -526,7 +546,7 @@ function agreementReminders() {
     if (String(rows[r][H.indexOf('Status')]) !== 'Accepted') continue;
     if (rows[r][H.indexOf('AgreementSigned')]) continue;
     var b = rowToBooking_(rows[r], H);
-    if (!b.PrimaryEmail) continue;
+    if (!b.PrimaryEmail || isExperience_(b)) continue;   // bareboat agreement is charters only
 
     var win = blockWindowFromLabel_(rows[r][H.indexOf('CharterDate')], rows[r][H.indexOf('TimeBlock')]);
     if (win && win.end < new Date()) continue;                 // already sailed
@@ -612,6 +632,197 @@ function parseStamp_(v) {
   if (v instanceof Date) return v.getTime();
   var m = String(v).match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
   return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime() : NaN;
+}
+
+// ====================== EXPERIENCES ========================================
+/**
+ * Crewed trips (architecture tour, sunset cruise, Soldier Field shuttle) and
+ * boat relocation. They ride the same offer flow as a charter: a Bookings row
+ * with Status 'Requested', Luis's Accept/Decline email, the same nudges and
+ * invoicing. What differs:
+ *   - the price is worked out HERE from the Experiences tab, never trusted
+ *     from the page, so an edited request cannot name its own price;
+ *   - the hold is the exact trip window, not a fixed block, and a round-trip
+ *     shuttle holds two windows (EventId stores both ids, comma-separated);
+ *   - relocation is Luis on someone else's boat, so it holds nothing on Quarters.
+ *
+ * Expected payload (site/src/pages/experiences.astro):
+ * { action: 'newExperienceRequest', charterDate: '2026-10-04',
+ *   legs: [ { id: 'shuttle-there', start: '16:30' }, { id: 'shuttle-back', start: '22:15' } ],
+ *   primaryName, firstName, primaryEmail, phone, partySize, message,
+ *   details: 'From Belmont Harbor to Burnham Harbor · 2019 Sea Ray 32' }
+ */
+function createExperienceRequest(data) {
+  var exps = experienceMap_();
+  var legs = (data.legs || []).filter(function (l) { return l && l.id; });
+  if (!data.charterDate || !legs.length) return { ok: false, error: 'missing_fields' };
+
+  var total = 0, labels = [], windows = [];
+  for (var i = 0; i < legs.length; i++) {
+    var x = exps[legs[i].id];
+    if (!x || !x.active) return { ok: false, error: 'unknown_experience: ' + legs[i].id };
+    if (x.maxGuests && Number(data.partySize) > Number(x.maxGuests)) return { ok: false, error: 'too_many_guests' };
+    total += priceForDate_(x, data.charterDate);
+    var win = experienceWindow_(data.charterDate, legs[i].start, x.hours);
+    labels.push(x.name + (win ? ' · ' + fmtTime_(win.start) + ' – ' + fmtTime_(win.end) : ''));
+    if (x.holdsBoat && win) windows.push({ win: win, name: x.name });
+    else if (x.holdsBoat) return { ok: false, error: 'missing_start_time' };
+  }
+
+  // Race guard, window by window.
+  var cal = calendar_();
+  for (var w = 0; w < windows.length; w++) {
+    if (cal && cal.getEvents(windows[w].win.start, windows[w].win.end).length) {
+      return { ok: false, error: 'slot_taken' };
+    }
+  }
+
+  var bookingId = newBookingId_(data.charterDate);
+  var label = labels.join(' & ');
+  var req = {
+    charterDate: data.charterDate, timeBlock: label, experience: legs.map(function (l) { return l.id; }).join('+'),
+    primaryName: data.primaryName, firstName: data.firstName, primaryEmail: data.primaryEmail,
+    phone: data.phone, partySize: data.partySize, addOns: data.details || '',
+    message: data.message || '', amountPaid: total, captainStatus: 'crewed'
+  };
+
+  var eventIds = windows.map(function (x) {
+    return cal ? cal.createEvent(
+      '⏳ REQUEST · $' + total + ' · ' + x.name + ' · ' + (req.primaryName || 'Guest') +
+        ' (' + bookingId + ')',
+      x.win.start, x.win.end,
+      { description: eventDesc_(req, bookingId, '', true), location: CONFIG.DOCK_LOCATION }).getId() : '';
+  }).filter(String);
+
+  appendRow_(openSS_(), 'Bookings', {
+    BookingID: bookingId, Created: now_(), CharterDate: data.charterDate, TimeBlock: label,
+    PrimaryName: req.primaryName, PrimaryEmail: req.primaryEmail, Phone: req.phone || '',
+    PartySize: req.partySize || '', CaptainStatus: req.captainStatus, AddOns: req.addOns,
+    AmountPaid: total, Status: 'Requested', EventId: eventIds.join(','),
+    GuestMessage: req.message, Experience: req.experience
+  });
+
+  sendOfferToLuis_(req, bookingId);
+  sendRequestAck_(req, bookingId);
+  return { ok: true, bookingId: bookingId, status: 'requested', amount: total };
+}
+
+/** The Experiences tab merged over CONFIG.EXPERIENCES. Keyed by id. */
+function experienceMap_() {
+  var out = {};
+  CONFIG.EXPERIENCES.forEach(function (d) {
+    out[d.id] = { id: d.id, name: d.name, price: d.price, peakPrice: d.peakPrice, peakDays: d.peakDays,
+                  hours: d.hours, maxGuests: '', active: true, holdsBoat: d.holdsBoat };
+  });
+  var sh = openSS_().getSheetByName('Experiences');
+  if (!sh) return out;
+  var rows = sh.getDataRange().getValues(), H = HEADERS.Experiences;
+  var col = function (r, k) { return rows[r][H.indexOf(k)]; };
+  for (var r = 1; r < rows.length; r++) {
+    var id = String(col(r, 'ID') || '').trim();
+    if (!id) continue;
+    var x = out[id] || { id: id, name: id, price: '', peakPrice: '', peakDays: '', hours: '', holdsBoat: true };
+    ['Name', 'Price', 'PeakPrice', 'PeakDays', 'Hours', 'MaxGuests'].forEach(function (k) {
+      var v = col(r, k);
+      if (v !== '' && v !== null) x[k.charAt(0).toLowerCase() + k.slice(1)] = v;
+    });
+    var act = col(r, 'Active');
+    x.active = !(act === false || /^(false|no|off|0)$/i.test(String(act).trim()));
+    out[id] = x;
+  }
+  return out;
+}
+
+/** Public list for the site. Price is for the given date when there is one. */
+function listExperiences_(dateStr) {
+  var map = experienceMap_();
+  return Object.keys(map).map(function (id) {
+    var x = map[id];
+    return { id: id, name: x.name, active: x.active,
+             price: dateStr ? priceForDate_(x, dateStr) : Number(x.price),
+             basePrice: Number(x.price), peakPrice: x.peakPrice === '' ? null : Number(x.peakPrice),
+             peakDays: peakDays_(x.peakDays), hours: x.hours === '' ? null : Number(x.hours),
+             maxGuests: x.maxGuests === '' ? null : Number(x.maxGuests) };
+  });
+}
+
+/** PeakPrice on PeakDays, Price otherwise. */
+function priceForDate_(x, dateStr) {
+  var p = String(dateStr).split('-');
+  var dow = new Date(+p[0], +p[1] - 1, +p[2]).getDay();
+  var peak = x.peakPrice !== '' && x.peakPrice !== null && peakDays_(x.peakDays).indexOf(dow) >= 0;
+  return Number(peak ? x.peakPrice : x.price);
+}
+
+/** "Thu, Fri, Sat" (or "thursday friday saturday") -> [4, 5, 6]. */
+function peakDays_(s) {
+  var names = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  return String(s || '').toLowerCase().split(/[^a-z]+/).map(function (w) {
+    return names.indexOf(w.slice(0, 3));
+  }).filter(function (i, k, a) { return i >= 0 && a.indexOf(i) === k; });
+}
+
+/** date + 'HH:mm' + hours -> {start, end}. Runs past midnight fine. Null without a start. */
+function experienceWindow_(dateStr, hhmm, hours) {
+  var m = String(hhmm || '').match(/^(\d{1,2}):(\d{2})$/);
+  if (!m || !dateStr || !Number(hours)) return null;
+  var p = String(dateStr).split('-');
+  var start = new Date(+p[0], +p[1] - 1, +p[2], +m[1], +m[2]);
+  return { start: start, end: new Date(start.getTime() + Number(hours) * 3600000) };
+}
+
+/**
+ * Busy stretches on the Quarters calendar for a date, as [startMin, endMin]
+ * from that midnight. Runs to 6am next day so a late shuttle pickup sees
+ * anything that crosses midnight. All-day blocks come back as [0, 1440].
+ */
+function busyIntervals_(dateStr) {
+  var cal = calendar_();
+  if (!cal || !dateStr) return [];
+  var p = String(dateStr).split('-');
+  var day = new Date(+p[0], +p[1] - 1, +p[2]);
+  var until = new Date(day.getTime() + 30 * 3600000);
+  return cal.getEvents(day, until).map(function (ev) {
+    return [Math.max(0, Math.round((ev.getStartTime() - day) / 60000)),
+            Math.round((ev.getEndTime() - day) / 60000)];
+  });
+}
+
+function fmtTime_(d) { return Utilities.formatDate(d, CONFIG.TIMEZONE, 'h:mm a'); }
+
+/** Build or top up the Experiences tab. Existing rows (and Luis's prices) are left alone. */
+function seedExperiences_(ss) {
+  var sh = ss.getSheetByName('Experiences');
+  if (!sh) {
+    sh = ensureSheet_(ss, 'Experiences', HEADERS.Experiences);
+    sh.getRange(1, 1, 1, HEADERS.Experiences.length).setNote(
+      'Change a price and the website shows it right away. PeakPrice applies on PeakDays ' +
+      '(write them like "Thu, Fri, Sat"). Uncheck Active to hide an experience from the site. ' +
+      'Leave MaxGuests blank for no cap. Do not change the ID column.');
+  }
+  var have = sh.getDataRange().getValues().map(function (r) { return String(r[0]); });
+  CONFIG.EXPERIENCES.forEach(function (d) {
+    if (have.indexOf(d.id) >= 0) return;
+    appendRow_(ss, 'Experiences', {
+      ID: d.id, Name: d.name, Price: d.price, PeakPrice: d.peakPrice, PeakDays: d.peakDays,
+      Hours: d.hours, MaxGuests: '', Active: true,
+      Note: d.holdsBoat ? '' : 'Does not hold Quarters. Plus rideshare to and from.'
+    });
+  });
+  var a = HEADERS.Experiences.indexOf('Active') + 1;
+  sh.getRange(2, a, Math.max(sh.getLastRow() - 1, 1)).insertCheckboxes();
+  sh.getRange(2, HEADERS.Experiences.indexOf('Price') + 1, Math.max(sh.getMaxRows() - 1, 1), 2)
+    .setNumberFormat('$#,##0');
+}
+
+/**
+ * Run ONCE on the live system after pasting this version: adds the Experience
+ * column to Bookings and builds the Experiences tab. Safe to re-run.
+ */
+function setupExperiences() {
+  migrateToOfferFlow();
+  seedExperiences_(openSS_());
+  Logger.log('Experiences tab ready: ' + openSS_().getUrl());
 }
 
 // ====================== CORE: NEW LEAD =====================================
@@ -700,6 +911,7 @@ function doPost(e) {
       case 'newRequest':
       case 'newBooking':   out = createRequest(body); break;
       case 'newLead':      out = createLead(body); break;
+      case 'newExperienceRequest': out = createExperienceRequest(body); break;
       case 'waiverSigned': out = recordWaiverSigned(body.bookingId, body.email, body.signedPdfUrl, body.guestName); break;
       default: out = { ok: false, error: 'unknown action: ' + body.action };
     }
@@ -712,6 +924,7 @@ function doPost(e) {
 /**
  * GET endpoint.
  *   ?action=pricing&date=YYYY-MM-DD   -> { ok, date, blocks, booked }   (site)
+ *   ?action=experiences&date=YYYY-MM-DD -> { ok, experiences, busy }    (site)
  *   ?action=accept|decline&id=..&t=.. -> HTML page                      (Luis)
  *   (no action)                       -> health check
  */
@@ -724,6 +937,11 @@ function doGet(e) {
   if (action === 'pricing') {
     return json_({ ok: true, date: e.parameter.date || null,
       blocks: getPricing_(e.parameter.date), booked: getAvailability_(e.parameter.date) });
+  }
+  if (action === 'experiences') {
+    var d = e.parameter.date || '';
+    return json_({ ok: true, date: d || null,
+      experiences: listExperiences_(d), busy: d ? busyIntervals_(d) : [] });
   }
   if (action === 'availability') {
     return json_({ ok: true, date: e.parameter.date || null, booked: getAvailability_(e.parameter.date) });
@@ -777,7 +995,8 @@ function onCaptainFormSubmit(e) {
   const captain     = a['Captain'] || '';
   const destination = a['Destinations'] || '';
   const engineHours = parseFloat(a['Engine Hours use Est']) || 0;
-  const fuel        = computeFuel_(destination, engineHours);
+  const exp         = findBookingByDateName_(date, partyName);
+  const fuel        = (exp && isExperience_(exp)) ? 0 : computeFuel_(destination, engineHours);
 
   const matched = updateBookingByDateName_(date, partyName, {
     Destination: destination, EngineHours: engineHours, FuelDue: fuel, CaptainAssigned: captain
@@ -790,7 +1009,7 @@ function onCaptainFormSubmit(e) {
     'Destination: ' + destination + '\n' +
     'Engine hours: ' + engineHours + '\n\n' +
     '➡ Fuel to invoice via Stripe: $' + fuel +
-    '  (flat rate)' +
+    (fuel ? '  (flat rate)' : '  (fuel is included on experiences, nothing to bill)') +
     '\n\n' + (matched ? 'Booking row updated.' : '⚠ No matching booking found — check the Party Name/Date.') +
     '\nFull report is in the form-responses tab.');
 }
@@ -818,6 +1037,17 @@ function updateBookingByDateName_(date, name, fields) {
     return String(rowDate) === String(date) &&
            String(row[H.indexOf('PrimaryName')]).trim().toLowerCase() === n;
   }, fields);
+}
+
+function findBookingByDateName_(date, name) {
+  const n = String(name).trim().toLowerCase();
+  const rows = openSS_().getSheetByName('Bookings').getDataRange().getValues();
+  const H = HEADERS.Bookings;
+  for (var r = 1; r < rows.length; r++) {
+    var b = rowToBooking_(rows[r], H);
+    if (String(b.CharterDate) === String(date) && String(b.PrimaryName).trim().toLowerCase() === n) return b;
+  }
+  return null;
 }
 
 function updateBookingWhere_(predicate, fields) {
@@ -1026,8 +1256,9 @@ function sendOfferToLuis_(data, bookingId) {
       row('Time', esc_(block)) +
       row('Party', esc_(data.partySize || '?')) +
       row('Their price', '$' + esc_(data.amountPaid || CONFIG.DEFAULT_BLOCK_PRICE)) +
-      row('Captain', needs ? 'needs one from the roster' : 'bringing their own') +
-      (data.addOns ? row('Asks for', esc_(data.addOns)) : '') +
+      (isExperience_(data) ? row('Trip', 'crewed by us, fuel included')
+                           : row('Captain', needs ? 'needs one from the roster' : 'bringing their own')) +
+      (data.addOns ? row(isExperience_(data) ? 'Details' : 'Asks for', esc_(data.addOns)) : '') +
     '</table>' +
     (data.message
       ? '<p style="background:#fff;border-left:3px solid #c2185b;padding:12px 14px;margin:0 0 18px">' +
@@ -1044,7 +1275,7 @@ function sendOfferToLuis_(data, bookingId) {
     '<p style="color:#999;font-size:12px">Booking ' + bookingId + '</p>');
 
   sendHtml_(CONFIG.OWNER_EMAIL,
-    (needs ? '\u2693 ' : '\u2693 ') + 'Charter request \u00b7 ' + data.charterDate + ' \u00b7 ' +
+    '\u2693 ' + (isExperience_(data) ? 'Experience request' : 'Charter request') + ' \u00b7 ' + data.charterDate + ' \u00b7 ' +
       block.split('\u00b7')[0].trim() + ' \u00b7 $' + (data.amountPaid || CONFIG.DEFAULT_BLOCK_PRICE),
     html, data.primaryEmail || '');
 }
@@ -1062,7 +1293,9 @@ function sendRequestAck_(data, bookingId) {
       '<p><strong>' + esc_(data.charterDate) + ' &middot; ' + esc_(block) +
         (data.partySize ? ' &middot; party of ' + esc_(data.partySize) : '') + '</strong><br>' +
         '<span style="color:#5f6b53">$' + esc_(data.amountPaid || CONFIG.DEFAULT_BLOCK_PRICE) +
-        ' for the boat. Captain and fuel are billed separately.</span></p>' +
+        (isRelocation_(data) ? ', plus rideshare to and from the boat.'
+          : isExperience_(data) ? ' all in. Captain, crew, and fuel are included.'
+          : ' for the boat. Captain and fuel are billed separately.') + '</span></p>' +
       '<p>We answer the same day. Nothing is charged yet, and there is nothing for you ' +
         'to do until we confirm.</p>' +
       '<p>Just reply to this email if anything changes.</p>' +
@@ -1086,7 +1319,7 @@ function sendAcceptedEmail_(b, bookingId, invoice) {
     : 'You let us know you are bringing your own qualified captain, perfect. Please send their credentials over so we can confirm them. If anything changes, we keep a roster of independent captains familiar with the boat and can help.';
 
   // Only surface an agreement link once the payment-free version of the form exists.
-  var agreementBlock = CONFIG.LINK_AGREEMENT_NOPAY
+  var agreementBlock = (CONFIG.LINK_AGREEMENT_NOPAY && !isExperience_(b))
     ? '<p>One thing to do before the trip: sign the <strong>Charter Agreement</strong>. No payment on it, ' +
       'that comes on your invoice.<br><a href="' + CONFIG.LINK_AGREEMENT_NOPAY + '?bookingId=' +
       encodeURIComponent(bookingId) + '&name=' + encodeURIComponent(b.PrimaryName || '') +
@@ -1097,10 +1330,19 @@ function sendAcceptedEmail_(b, bookingId, invoice) {
     'Confirmed, you are on the water (' + bookingId + ')',
     shell_(
       '<p>Hi ' + esc_(firstName) + ',</p>' +
-      '<p>You are confirmed and locked in aboard <strong>' + CONFIG.BOAT_NAME + '</strong>.</p>' +
-      '<p><strong>Your charter:</strong> ' + esc_(b.CharterDate) + ' &middot; ' + esc_(b.TimeBlock) +
+      (isRelocation_(b) ? '<p>You are confirmed. We will move your boat.</p>'
+        : '<p>You are confirmed and locked in aboard <strong>' + CONFIG.BOAT_NAME + '</strong>.</p>') +
+      '<p><strong>' + (isExperience_(b) ? 'Your trip' : 'Your charter') + ':</strong> ' + esc_(b.CharterDate) + ' &middot; ' + esc_(b.TimeBlock) +
         (b.PartySize ? ' &middot; party of ' + esc_(b.PartySize) : '') + '</p>' +
-      '<p>We operate under a <strong>bareboat / demise charter model</strong>. The vessel is legally released ' +
+      // Experiences: Luis runs the trip, so the bareboat captain and fuel talk would be false.
+      // TODO(Luis): proper experience copy. This is the stand-in until he writes it.
+      (isRelocation_(b)
+        ? '<p>We will be in touch to line up the handoff: keys, where she is tied up, and anything we should ' +
+          'know about her. The price covers the run itself, and rideshare to and from the boat comes on the invoice.</p>'
+      : isExperience_(b)
+        ? '<p>We are running this one, so the captain, crew, and fuel are all covered. Bring whatever you like ' +
+          'aboard: food, drinks, and a playlist.</p>'
+        : '<p>We operate under a <strong>bareboat / demise charter model</strong>. The vessel is legally released ' +
         'to you, as if it were yours for the trip. Because you take operational control, things like captains, ' +
         'fuel, food and drinks are yours to arrange.</p>' +
       '<p>' + captainPara + '</p>' +
@@ -1108,19 +1350,21 @@ function sendAcceptedEmail_(b, bookingId, invoice) {
         CONFIG.CAPTAIN_RATE_HIGH + '/hr</strong> depending on the weekend and demand for that captain.</p>' +
       '<p>Fuel works the same way: you can top off on the way back in, or we invoice a <strong>flat $' +
         CONFIG.FUEL_FLAT_RATE + '</strong> after the trip, wherever you go. Most guests prefer to have us ' +
-        'invoice it, for simplicity and to keep that extra time on the water.</p>' +
+        'invoice it, for simplicity and to keep that extra time on the water.</p>') +
       ((invoice && invoice.ok && invoice.sent)
         ? '<p><strong>Payment:</strong> your invoice for the <strong>$' + esc_(amount) +
           '</strong> charter is in your inbox. <a href="' + invoice.url + '">You can also pay it here</a>.</p>'
         : '<p><strong>Payment:</strong> We will send you an invoice for the <strong>$' + esc_(amount) +
           '</strong> charter. Nothing to do right now.</p>') +
       agreementBlock +
+      (isRelocation_(b) ? '' :
       '<p><strong>Waivers:</strong> every guest signs one, and we handle it right at the dock before you board. ' +
         'Please arrive about 15 minutes early so it is quick.</p>' +
       '<p>The boat is at <strong>' + CONFIG.DOCK_LOCATION + '</strong>. Her name is <strong>' +
         CONFIG.BOAT_NAME + '</strong>.<br>Directions to the right spot: <a href="' + CONFIG.LINK_DIRECTIONS +
-        '">' + CONFIG.LINK_DIRECTIONS.replace(/^https?:\/\//, '') + '</a></p>' +
-      '<p>Charter captains list: <a href="' + CONFIG.LINK_CAPTAINS + '">view the roster</a></p>' +
+        '">' + CONFIG.LINK_DIRECTIONS.replace(/^https?:\/\//, '') + '</a></p>') +
+      (isExperience_(b) ? '' :
+      '<p>Charter captains list: <a href="' + CONFIG.LINK_CAPTAINS + '">view the roster</a></p>') +
       '<p>Have fun and stay hydrated!</p>' +
       '<p>&mdash; ' + CONFIG.BUSINESS_NAME + '<br>' +
         '<span style="color:#888;font-size:12px">Booking ' + bookingId + '</span></p>'),
@@ -1156,8 +1400,8 @@ function sendAcceptedReceiptToLuis_(b, bookingId, folderUrl, invoice) {
         '<span style="color:#5f6b53;font-size:13px">Already tagged to ' + bookingId +
         '. Pull it up on a phone and pass it around, or show the QR card.</span></p>' +
       '<p>' + esc_(b.CharterDate) + ' &middot; ' + esc_(b.TimeBlock) + ' &middot; party of ' +
-        esc_(b.PartySize || '?') + ' &middot; captain ' +
-        (String(b.CaptainStatus).toLowerCase() === 'need' ? '<strong>NEEDED</strong>' : 'theirs') + '</p>' +
+        esc_(b.PartySize || '?') + (isExperience_(b) ? ' &middot; you are running it' : ' &middot; captain ' +
+        (String(b.CaptainStatus).toLowerCase() === 'need' ? '<strong>NEEDED</strong>' : 'theirs')) + '</p>' +
       '<p><strong>' + esc_(b.PrimaryName || '') + '</strong><br>' +
         telLink_(b.Phone) + ' &middot; ' + mailLink_(b.PrimaryEmail) + '</p>' +
       (folderUrl ? '<p><a href="' + folderUrl + '">Charter folder</a></p>' : '') +
@@ -1197,7 +1441,7 @@ function sendDeclinedEmail_(b, bookingId) {
       '<p>Sorry, we cannot take ' + esc_(b.CharterDate) + ' &middot; ' + esc_(b.TimeBlock) +
         '. Nothing has been charged.</p>' +
       '<p>Other dates are likely wide open, so it is worth another look: ' +
-        '<a href="https://la-lancha.com/book">check availability</a>. Or just reply here and we will ' +
+        '<a href="https://la-lancha.com/' + (isExperience_(b) ? 'experiences' : 'book') + '">check availability</a>. Or just reply here and we will ' +
         'find you something that works.</p>' +
       '<p>&mdash; ' + CONFIG.BUSINESS_NAME + '</p>'),
     CONFIG.OWNER_EMAIL);
@@ -1312,7 +1556,9 @@ function eventDesc_(data, bookingId, folderUrl, pending) {
          'Party of ' + (data.partySize || data.PartySize || '?') + '\n' +
          'Contact: ' + name + ' \u00b7 ' + email + ' \u00b7 ' + (data.phone || data.Phone || '') + '\n' +
          'Quoted: $' + price + '\n' +
-         'Captain: ' + (needs ? 'NEEDED \u2014 assign one' : 'guest bringing own') + '\n' +
+         (isExperience_(data)
+           ? 'Trip: ' + (data.timeBlock || data.TimeBlock) + '\nCrewed by us. Fuel included.\n'
+           : 'Captain: ' + (needs ? 'NEEDED \u2014 assign one' : 'guest bringing own') + '\n') +
          ((data.addOns || data.AddOns) ? 'Add-ons: ' + (data.addOns || data.AddOns) + '\n' : '') +
          (folderUrl ? 'Folder: ' + folderUrl + '\n' : '') + 'Booking ' + bookingId;
 }
@@ -1321,6 +1567,18 @@ function eventDesc_(data, bookingId, folderUrl, pending) {
 function confirmCalendarEvent_(b, folderUrl) {
   var cal = calendar_();
   if (!cal) return;
+  if (isExperience_(b)) {
+    // One event per held window (two for a round-trip shuttle). Titles were built
+    // per leg at request time, so just drop the REQUEST marker. Relocation holds none.
+    eventIds_(b).forEach(function (id) {
+      var e = cal.getEventById(id);
+      if (!e) return;
+      e.setTitle(e.getTitle().replace(/^\u23f3 REQUEST \u00b7 /, ''));
+      e.setDescription(eventDesc_(b, b.BookingID, folderUrl, false));
+      if (b.PrimaryEmail) e.addGuest(b.PrimaryEmail);
+    });
+    return;
+  }
   var ev = b.EventId ? cal.getEventById(b.EventId) : null;
   if (!ev) {   // hold went missing (deleted by hand) — recreate it confirmed
     createCalendarEvent_(b, b.BookingID, folderUrl, false);
@@ -1335,9 +1593,19 @@ function confirmCalendarEvent_(b, folderUrl) {
 function releaseHold_(b) {
   var cal = calendar_();
   if (!cal || !b.EventId) return;
-  try { var ev = cal.getEventById(b.EventId); if (ev) ev.deleteEvent(); }
-  catch (err) { Logger.log('releaseHold_ ' + b.BookingID + ': ' + err); }
+  eventIds_(b).forEach(function (id) {
+    try { var ev = cal.getEventById(id); if (ev) ev.deleteEvent(); }
+    catch (err) { Logger.log('releaseHold_ ' + b.BookingID + ': ' + err); }
+  });
 }
+
+/** EventId can hold several ids (round-trip shuttle), comma-separated. */
+function eventIds_(b) {
+  return String(b.EventId || '').split(',').map(function (s) { return s.trim(); }).filter(String);
+}
+/** True for an experience booking (request payload or Bookings row). */
+function isExperience_(b) { return !!(b && (b.experience || b.Experience)); }
+function isRelocation_(b) { return /relocation/.test(String((b && (b.experience || b.Experience)) || '')); }
 
 // --- post-charter reviews ---
 /**
@@ -1369,7 +1637,18 @@ function blockWindowFromLabel_(dateVal, blockLabel) {
   var id = null;
   Object.keys(CONFIG.TIME_BLOCKS).forEach(function (k) { if (CONFIG.TIME_BLOCKS[k] === blockLabel) id = k; });
   if (!id && CONFIG.BLOCK_WINDOWS[blockLabel]) id = blockLabel;            // stored as id
-  return id ? blockWindow_(dateStr, id) : null;
+  if (id) return blockWindow_(dateStr, id);
+  // Experience labels carry their own times: first start to last end.
+  var t = String(blockLabel).match(/\d{1,2}:\d{2} [AP]M/g);
+  if (!t || t.length < 2) return null;
+  var p = dateStr.split('-'), toMin = function (s) {
+    var m = s.match(/(\d+):(\d+) ([AP])M/);
+    return (+m[1] % 12 + (m[3] === 'P' ? 12 : 0)) * 60 + +m[2];
+  };
+  var s0 = toMin(t[0]), e0 = toMin(t[t.length - 1]);
+  if (e0 <= s0) e0 += 1440;                                                 // ran past midnight
+  var day = new Date(+p[0], +p[1] - 1, +p[2]);
+  return { start: new Date(day.getTime() + s0 * 60000), end: new Date(day.getTime() + e0 * 60000) };
 }
 
 function sendReviewEmail_(name, email) {
@@ -1534,14 +1813,16 @@ function createStripeInvoice_(b) {
       days_until_due: CONFIG.STRIPE_DAYS_UNTIL_DUE,
       auto_advance: 'false',
       pending_invoice_items_behavior: 'exclude',
-      description: 'Charter aboard ' + CONFIG.BOAT_NAME + '. Captain and fuel are billed separately.',
+      description: isRelocation_(b) ? 'Boat relocation. Rideshare to and from is billed separately.'
+        : isExperience_(b) ? String(b.TimeBlock).split(' \u00b7 ')[0] + ' aboard ' + CONFIG.BOAT_NAME + '. Captain, crew, and fuel included.'
+        : 'Charter aboard ' + CONFIG.BOAT_NAME + '. Captain and fuel are billed separately.',
       'metadata[bookingId]': b.BookingID
     });
 
     stripe_(key, 'invoiceitems', {
       customer: customer.id, invoice: invoice.id, currency: 'usd',
       amount: Math.round(amount * 100),
-      description: CONFIG.BOAT_NAME + ' charter \u00b7 ' + b.CharterDate + ' \u00b7 ' + b.TimeBlock
+      description: (isExperience_(b) ? '' : CONFIG.BOAT_NAME + ' charter \u00b7 ') + b.CharterDate + ' \u00b7 ' + b.TimeBlock
     });
 
     var finalized = stripe_(key, 'invoices/' + invoice.id + '/finalize', {});

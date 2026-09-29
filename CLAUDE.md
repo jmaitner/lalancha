@@ -26,7 +26,8 @@ Nothing is confirmed until Luis says yes. He gets every charter as an offer he a
 6. **Charter agreement** is emailed automatically on acceptance and chased by `agreementReminders` (daily, capped at `AGREEMENT_NUDGE_MAX`). Both are silent until `LINK_AGREEMENT_NOPAY` is set, since the pay-bundled form must never reach a guest. `reconcileJotform` (every 10 min) stamps **AgreementSigned**, which stops the chase. It no longer writes Status or Paid — Luis owns both.
    - **Stripe invoicing** is automatic when a restricted key is stored in Script Properties as `STRIPE_SECRET_KEY`. `createStripeInvoice_` finds-or-creates the customer, creates the invoice with `pending_invoice_items_behavior: exclude`, attaches the line to that invoice by id, and finalizes. `STRIPE_AUTO_SEND` decides whether it also emails the guest. **A Stripe failure never blocks a charter** — it degrades to "invoice by hand". No key at all = fully manual, which is what Luis uses if he bills through his bank to avoid card fees.
 7. Captain fills the **Captain Post-Charter Report** (Google Form) → `onCaptainFormSubmit` sets fuel (flat $50 per charter) → writes it to the booking + emails Luis what to invoice.
-8. Daily triggers: unpaid digest (9am, accepted charters with a blank Paid column), Google-review request to finished charters (10am).
+8. **Experiences** (`/experiences`: architecture tour, sunset cruise, Soldier Field shuttle, relocation) POST `newExperienceRequest` → `createExperienceRequest`, which rides the same offer flow (Bookings row with the `Experience` column filled, Accept/Decline, nudges, invoice). Prices come from the **Experiences** tab (`?action=experiences&date=`) and are recomputed server-side. Holds are the exact trip window; a round-trip shuttle holds two (comma-separated `EventId`); relocation holds nothing. Fuel is included (captain report bills $0), and the bareboat agreement chase skips them.
+9. Daily triggers: unpaid digest (9am, accepted charters with a blank Paid column), Google-review request to finished charters (10am).
 
 ## Key files
 - `apps-script/Code.gs` — the entire backend. CONFIG block at top holds all IDs/links/prices. `setupLaLanchaSystem()` bootstraps everything (idempotent). Offer flow, reconcile, calendar, reviews, fuel, forms all here.
@@ -41,6 +42,7 @@ Nothing is confirmed until Luis says yes. He gets every charter as an offer he a
 
 ## Common changes
 - **Change the standard price**: `DEFAULT_BLOCK_PRICE` in both `apps-script/Code.gs` CONFIG and `site/src/config.ts`. Premium per-date prices: the **Pricing** tab in the Operations sheet.
+- **Change experience prices**: the **Experiences** tab in the Operations sheet (Price, PeakPrice on PeakDays, Hours, MaxGuests, Active). Card copy: `site/src/experiences.ts`. New experience = row in the tab + entry in `CONFIG.EXPERIENCES` + card in experiences.ts, same ID in all three.
 - **Change reminder cadence**: `NUDGE_HOURS` / `NUDGE_REPEAT_HOURS` (Luis) and `AGREEMENT_NUDGE_HOURS` / `AGREEMENT_NUDGE_MAX` (guests) in CONFIG. Holds themselves are deliberately permanent.
 - **Turn on automatic Stripe invoices**: store a restricted key via `setStripeKey('rk_live_…')`, then clear the argument. `STRIPE_AUTO_SEND: true` also emails it to the guest.
 - **Edit the offer email Luis gets**: `sendOfferToLuis_`. The accepted-charter email: `sendAcceptedEmail_`.
