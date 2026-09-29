@@ -139,8 +139,11 @@ function getNoticesPayload_() {
   var cutoff = Date.now() - NOTICES_CFG.RETENTION_DAYS * 864e5;
   var out = rows
     .filter(function (n) {
+      // Keep active AND cancelled Chicago notices within the 30-day window — a
+      // cancelled event is still a data point ("that swim on the 25th is off").
+      // Only the bare CANCELLATION pointers (never stored as rows) are dropped.
       return n.chicagoRelevant === true &&
-        n.status !== 'expired' && n.status !== 'cancellation' &&
+        n.status !== 'cancellation' &&
         (new Date(n.publishedAt).getTime() || 0) >= cutoff;
     })
     .sort(function (a, b) { return new Date(b.publishedAt) - new Date(a.publishedAt); })
@@ -149,6 +152,7 @@ function getNoticesPayload_() {
         id: n.id, source: n.source, officialNoticeId: n.officialNoticeId,
         category: n.category, area: n.geographicArea,
         title: n.displayTitle || n.title, summary: n.summary,
+        status: n.status === 'expired' ? 'cancelled' : 'active',
         publishedAt: n.publishedAt, effectiveAt: n.effectiveAt || null, expiresAt: n.expiresAt || null,
         officialUrl: n.officialUrl,
       };

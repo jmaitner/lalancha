@@ -90,9 +90,10 @@ const description =
         try { when = dtf.format(new Date(n.publishedAt)); } catch (e) {}
         const badge = n.source === 'LNM' ? 'LNM' : 'BNM';
         const cat = n.category ? ` · ${esc(n.category)}` : '';
-        return `<article class="notice">
+        const cancelled = n.status === 'cancelled';
+        return `<article class="notice${cancelled ? ' is-cancelled' : ''}">
           <h3>${esc(n.title)}</h3>
-          <p class="notice-meta"><span class="src ${badge.toLowerCase()}">${badge}</span>${cat} · ${esc(when)}</p>
+          <p class="notice-meta"><span class="src ${badge.toLowerCase()}">${badge}</span>${cat} · ${esc(when)}${cancelled ? ' · <span class="canc-badge">Cancelled</span>' : ''}</p>
           ${n.summary ? `<p class="notice-sum">${esc(n.summary)}</p>` : ''}
           ${n.area ? `<p class="notice-area"><span>Area</span> ${esc(n.area)}</p>` : ''}
           ${n.officialUrl ? `<a class="notice-link" href="${esc(n.officialUrl)}" target="_blank" rel="noopener">View official notice →</a>` : ''}
@@ -162,6 +163,10 @@ const description =
     .notice-area { font-size: 13px; margin: 0 0 8px; color: var(--ink); }
     .notice-area span { font-weight: 700; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; color: #8a8470; margin-right: 4px; }
     .notice-link { font-weight: 700; font-size: 14px; color: var(--blue); }
+    .notice.is-cancelled { opacity: .66; }
+    .notice.is-cancelled h3 { text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: #b23a3a; }
+    .canc-badge { font-family: var(--display); font-weight: 700; font-size: 11px; letter-spacing: .05em; text-transform: uppercase;
+                  color: #b23a3a; border: 2px solid #b23a3a; border-radius: 999px; padding: 1px 8px; margin-left: 2px; }
 
     .empty { padding: 34px 8px; text-align: center; }
     .empty-h { font-family: var(--display); font-weight: 800; font-size: 20px; margin: 0 0 6px; }
