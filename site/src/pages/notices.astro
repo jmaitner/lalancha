@@ -18,10 +18,14 @@ const description =
     <div class="card notice-box">
       <!-- intro callout -->
       <div class="callout">
-        <p class="callout-head">Chicago Notice to Mariners</p>
-        <p class="callout-body">The U.S. Coast Guard publishes Broadcast and Local Notices to Mariners for
-          large areas of the Great Lakes. This page aggregates those notices and filters them for
-          information relevant to Chicago-area boaters.</p>
+        <p class="callout-head">Why this page exists</p>
+        <p class="callout-body">The Coast Guard posts its Notices to Mariners for the <strong>entire Great Lakes
+          district</strong> — every harbor from Wisconsin to Indiana, plus the industrial rivers — as one
+          raw stream of bulletins. Finding the handful that actually affect a day on the water in Chicago
+          means reading through all of it, every time. This page does that for you: it checks the official
+          feed every 15 minutes and surfaces <strong>only</strong> what touches Chicago's harbors, the
+          lakefront, and the river — so you can glance at one short list before you leave the dock instead
+          of combing the whole district.</p>
         <p class="callout-fine">
           <strong>BNM</strong> — time-sensitive navigation and safety notices.
           <strong>LNM</strong> — the Coast Guard's broader weekly navigation notice.
@@ -42,6 +46,11 @@ const description =
       <div class="notice-feed" id="feed">
         <p class="feed-msg muted" id="feed-msg">Loading current Chicago notices…</p>
       </div>
+
+      <!-- credit -->
+      <p class="notice-credit">Brought to you by
+        <a href="https://www.instagram.com/luisvecchio/" target="_blank" rel="noopener">Capt. Luis G. Vecchio</a>
+        &amp; <a href="https://www.instagram.com/lanchaboats/" target="_blank" rel="noopener">LanchaBoats</a></p>
     </div>
   </section>
 
@@ -157,8 +166,13 @@ const description =
     .empty { padding: 34px 8px; text-align: center; }
     .empty-h { font-family: var(--display); font-weight: 800; font-size: 20px; margin: 0 0 6px; }
 
+    .notice-credit { padding: 16px 24px; border-top: 2px solid var(--line); background: #fbfaf0;
+                     font-size: 14px; color: #6f6a58; margin: 0; text-align: center; }
+    .notice-credit a { font-weight: 700; color: var(--blue); text-decoration: none; border-bottom: 2px solid transparent; }
+    .notice-credit a:hover { border-bottom-color: var(--blue); }
+
     @media (max-width: 640px) {
-      .callout, .filters, .notice-feed { padding-left: 16px; padding-right: 16px; }
+      .callout, .filters, .notice-feed, .notice-credit { padding-left: 16px; padding-right: 16px; }
       .notice-feed { max-height: none; } /* natural scroll on phones */
       .updated { margin-left: 0; width: 100%; }
     }
