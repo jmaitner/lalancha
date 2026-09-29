@@ -1,0 +1,161 @@
+---
+import Base from '../layouts/Base.astro';
+import { ENDPOINT } from '../config.ts';
+
+const title = 'Chicago Notice to Mariners · lancha boat';
+const description =
+  'Current U.S. Coast Guard Broadcast Notices to Mariners filtered for Chicago-area boaters — harbors, the lakefront, and the Chicago River. Check before you leave the dock.';
+---
+<Base title={title} description={description}>
+  <section class="wrap intro-sec">
+    <p class="kicker">Chicago · Lake Michigan</p>
+    <h1>Notice to Mariners</h1>
+    <p class="lede">Current Coast Guard navigation notices, filtered down to what actually matters
+      for boating around Chicago. Check it before you leave the dock.</p>
+  </section>
+
+  <section class="wrap">
+    <div class="card notice-box">
+      <!-- intro callout -->
+      <div class="callout">
+        <p class="callout-head">Chicago Notice to Mariners</p>
+        <p class="callout-body">The U.S. Coast Guard publishes Broadcast and Local Notices to Mariners for
+          large areas of the Great Lakes. This page aggregates those notices and filters them for
+          information relevant to Chicago-area boaters.</p>
+        <p class="callout-fine">
+          <strong>BNM</strong> — time-sensitive navigation and safety notices.
+          <strong>LNM</strong> — the Coast Guard's broader weekly navigation notice.
+        </p>
+        <p class="callout-fine muted">Independent aggregator. Always verify critical navigation information with
+          <a href="https://www.navcen.uscg.gov/" target="_blank" rel="noopener">official U.S. Coast Guard sources</a>.</p>
+      </div>
+
+      <!-- filters -->
+      <div class="filters" id="filters">
+        <button class="nfilter is-on" data-src="all" type="button">All</button>
+        <button class="nfilter" data-src="BNM" type="button">BNM</button>
+        <button class="nfilter" data-src="LNM" type="button">LNM</button>
+        <span class="updated muted" id="updated"></span>
+      </div>
+
+      <!-- feed -->
+      <div class="notice-feed" id="feed">
+        <p class="feed-msg muted" id="feed-msg">Loading current Chicago notices…</p>
+      </div>
+    </div>
+  </section>
+
+  <script define:vars={{ ENDPOINT }}>
+    const feed = document.getElementById('feed');
+    const feedMsg = document.getElementById('feed-msg');
+    const updatedEl = document.getElementById('updated');
+    const filters = document.getElementById('filters');
+    let ALL = [];
+    let current = 'all';
+
+    const tz = 'America/Chicago';
+    const dtf = new Intl.DateTimeFormat('en-US', { timeZone: tz, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+    const dayf = new Intl.DateTimeFormat('en-US', { timeZone: tz, month: 'short', day: 'numeric' });
+
+    function ago(iso) {
+      if (!iso) return '';
+      const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+      if (s < 90) return 'just now';
+      if (s < 3600) return Math.round(s / 60) + ' min ago';
+      if (s < 86400) return Math.round(s / 3600) + ' hr ago';
+      return Math.round(s / 86400) + ' d ago';
+    }
+    const esc = (s) => (s || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    function render() {
+      const list = current === 'all' ? ALL : ALL.filter((n) => n.source === current);
+      if (!ALL.length) {
+        feed.innerHTML = `<div class="empty"><p class="empty-h">No current Chicago notices</p>
+          <p class="muted">No Chicago-area notices matching our filters have been published in the last 30 days.</p>
+          <p><a href="https://www.navcen.uscg.gov/broadcast-notice-to-mariners" target="_blank" rel="noopener">Check the official Coast Guard notices →</a></p></div>`;
+        return;
+      }
+      if (!list.length) { feed.innerHTML = `<p class="feed-msg muted">No ${current} notices right now.</p>`; return; }
+      feed.innerHTML = list.map((n) => {
+        let when = '';
+        try { when = dtf.format(new Date(n.publishedAt)); } catch (e) {}
+        const badge = n.source === 'LNM' ? 'LNM' : 'BNM';
+        const cat = n.category ? ` · ${esc(n.category)}` : '';
+        return `<article class="notice">
+          <h3>${esc(n.title)}</h3>
+          <p class="notice-meta"><span class="src ${badge.toLowerCase()}">${badge}</span>${cat} · ${esc(when)}</p>
+          ${n.summary ? `<p class="notice-sum">${esc(n.summary)}</p>` : ''}
+          ${n.area ? `<p class="notice-area"><span>Area</span> ${esc(n.area)}</p>` : ''}
+          ${n.officialUrl ? `<a class="notice-link" href="${esc(n.officialUrl)}" target="_blank" rel="noopener">View official notice →</a>` : ''}
+        </article>`;
+      }).join('');
+    }
+
+    filters.addEventListener('click', (e) => {
+      const b = e.target.closest('.nfilter'); if (!b) return;
+      current = b.dataset.src;
+      [...filters.querySelectorAll('.nfilter')].forEach((x) => x.classList.toggle('is-on', x === b));
+      render();
+    });
+
+    (async () => {
+      try {
+        const res = await fetch(`${ENDPOINT}?action=notices`, { method: 'GET' });
+        const data = await res.json();
+        ALL = (data && data.notices) || [];
+        updatedEl.textContent = data && data.updated ? `Updated ${ago(data.updated)}` : '';
+        render();
+      } catch (err) {
+        feedMsg.innerHTML = `We couldn't reach the live notice feed right now. Please check the
+          <a href="https://www.navcen.uscg.gov/broadcast-notice-to-mariners" target="_blank" rel="noopener">official Coast Guard source</a>.`;
+      }
+    })();
+  </script>
+
+  <style>
+    .intro-sec { margin-top: 48px; }
+    .kicker { text-transform: uppercase; letter-spacing: .18em; font-weight: 700; font-size: 13px; color: var(--blue); margin: 0 0 12px; }
+    h1 { font-size: clamp(36px, 6vw, 64px); font-weight: 800; }
+    .lede { font-size: 19px; max-width: 640px; }
+
+    .notice-box { margin: 18px 0 8px; padding: 0; overflow: hidden; }
+    .callout { padding: 22px 24px 18px; border-bottom: 2px solid var(--ink); background: #fbfaf0; }
+    .callout-head { font-family: var(--display); font-weight: 800; font-size: 20px; margin: 0 0 8px; }
+    .callout-body { font-size: 15px; line-height: 1.55; margin: 0 0 10px; max-width: 720px; }
+    .callout-fine { font-size: 13px; line-height: 1.5; margin: 0 0 6px; }
+    .callout-fine strong { color: var(--blue); }
+    .callout-fine:last-child { margin-bottom: 0; }
+
+    .filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 14px 24px; border-bottom: 2px solid var(--line); }
+    .nfilter { font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: .04em;
+               padding: 6px 15px; border-radius: 999px; border: 2px solid var(--ink); background: var(--cream);
+               color: var(--ink); cursor: pointer; }
+    .nfilter.is-on { background: var(--blue); color: var(--cream); }
+    .updated { margin-left: auto; font-size: 12px; }
+
+    .notice-feed { max-height: 620px; overflow-y: auto; padding: 6px 24px 14px; }
+    .feed-msg { padding: 26px 0; text-align: center; }
+
+    .notice { padding: 16px 0; border-bottom: 1px solid var(--line); }
+    .notice:last-child { border-bottom: none; }
+    .notice h3 { font-size: 18px; font-weight: 800; margin: 0 0 6px; line-height: 1.2; }
+    .notice-meta { font-size: 12px; color: #8a8470; margin: 0 0 8px; display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+    .src { font-family: var(--display); font-weight: 700; font-size: 11px; letter-spacing: .05em;
+           padding: 2px 8px; border-radius: 999px; border: 2px solid var(--ink); margin-right: 6px; }
+    .src.bnm { background: var(--magenta); color: var(--cream); }
+    .src.lnm { background: var(--gold); color: var(--ink); }
+    .notice-sum { font-size: 14px; line-height: 1.55; margin: 0 0 8px; }
+    .notice-area { font-size: 13px; margin: 0 0 8px; color: var(--ink); }
+    .notice-area span { font-weight: 700; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; color: #8a8470; margin-right: 4px; }
+    .notice-link { font-weight: 700; font-size: 14px; color: var(--blue); }
+
+    .empty { padding: 34px 8px; text-align: center; }
+    .empty-h { font-family: var(--display); font-weight: 800; font-size: 20px; margin: 0 0 6px; }
+
+    @media (max-width: 640px) {
+      .callout, .filters, .notice-feed { padding-left: 16px; padding-right: 16px; }
+      .notice-feed { max-height: none; } /* natural scroll on phones */
+      .updated { margin-left: 0; width: 100%; }
+    }
+  </style>
+</Base>

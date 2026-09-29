@@ -127,6 +127,17 @@ const gallery = [
     </div>
   </section>
 
+  <!-- NOTICE TO MARINERS (teaser) -->
+  <section class="wrap section">
+    <a class="notices-teaser" href="/notices">
+      <span class="nt-text">
+        <span class="nt-kicker">Chicago Notice to Mariners</span>
+        <span class="nt-sub">Current Coast Guard navigation notices relevant to Chicago waters.</span>
+      </span>
+      <span class="nt-arrow">View notices →</span>
+    </a>
+  </section>
+
   <script define:vars={{ ENDPOINT }}>
     const form = document.getElementById('lead-form');
     const btn = document.getElementById('lead-btn');
@@ -213,5 +224,17 @@ const gallery = [
       .grid-3, .grid-2, .form .row { grid-template-columns: 1fr; }
       .gallery { columns: 2 150px; }
     }
+
+    /* Notice to Mariners teaser */
+    .notices-teaser { display: flex; align-items: center; justify-content: space-between; gap: 18px;
+      text-decoration: none; color: var(--ink); background: #fff; border: 2px solid var(--ink);
+      border-radius: 16px; padding: 18px 22px; box-shadow: 4px 4px 0 var(--ink);
+      transition: transform .08s ease, box-shadow .08s ease; }
+    .notices-teaser:hover { transform: translate(-1px,-1px); box-shadow: 6px 6px 0 var(--blue); }
+    .nt-text { display: flex; flex-direction: column; gap: 3px; }
+    .nt-kicker { font-family: var(--display); font-weight: 800; font-size: 18px; }
+    .nt-sub { color: #8a8470; font-size: 14px; }
+    .nt-arrow { font-family: var(--display); font-weight: 700; color: var(--blue); white-space: nowrap; }
+    @media (max-width: 520px) { .notices-teaser { flex-direction: column; align-items: flex-start; gap: 10px; } }
   </style>
 </Base>
