@@ -46,9 +46,8 @@ var NOTICES_CFG = {
   // Chicago Harbor Safety Committee news (Wix blog RSS). Every post is Chicago by
   // definition — boat run schedule, bridge lifts, harbor projects — so no filtering.
   CHS_RSS_URL: 'https://www.chicagoharborsafety.org/blog-feed.xml',
-  CHS_MAX_SHOWN: 10, // evergreen: surface the latest N committee posts regardless of age
 
-  RETENTION_DAYS: 30,
+  RETENTION_DAYS: 30, // everything falls off at 30 days — every source, no exceptions
   POLL_MINUTES: 15,
   STORE_NAME: 'La Lancha — Notices (Coast Guard)',
   MAX_SUMMARY: 240,
@@ -152,14 +151,12 @@ function ingestNotices() {
 function getNoticesPayload_() {
   var rows = loadNotices_();
   var cutoff = Date.now() - NOTICES_CFG.RETENTION_DAYS * 864e5;
-  var chsSeen = 0;
   var out = rows
     .filter(function (n) { return n.chicagoRelevant === true && n.status !== 'cancellation'; })
     .sort(function (a, b) { return new Date(b.publishedAt) - new Date(a.publishedAt); })
     .filter(function (n) {
-      // BNM/LNM: 30-day window (cancelled ones stay — "that swim on the 25th is off"
-      // is still a data point). CHSC: evergreen — latest N committee posts, any age.
-      if (n.source === 'CHSC') { chsSeen++; return chsSeen <= NOTICES_CFG.CHS_MAX_SHOWN; }
+      // Everything falls off at 30 days — every source, no exceptions. A cancelled
+      // notice stays only while it's still <30 days old, then ages out with the rest.
       return (new Date(n.publishedAt).getTime() || 0) >= cutoff;
     })
     .map(function (n) {
@@ -379,16 +376,10 @@ function applyCancellations_(cancellations) {
 
 /** Drop rows older than retention window (behave as if deleted). */
 function pruneRetention_() {
+  // Everything falls off at 30 days — every source, no exceptions.
   var cutoff = Date.now() - (NOTICES_CFG.RETENTION_DAYS + 1) * 864e5;
   var rows = loadNotices_();
-  // CHSC posts are evergreen — keep the latest 25 by date, drop older ones only.
-  var chsKeep = {};
-  rows.filter(function (r) { return r.source === 'CHSC'; })
-    .sort(function (a, b) { return new Date(b.publishedAt) - new Date(a.publishedAt); })
-    .slice(0, 25).forEach(function (r) { chsKeep[r.id] = true; });
   var kept = rows.filter(function (r) {
-    if (r.id === 'lnm-weekly-current') return true; // always keep the LNM reference
-    if (r.source === 'CHSC') return !!chsKeep[r.id];  // evergreen, capped at latest 25
     return (new Date(r.publishedAt).getTime() || Date.now()) >= cutoff;
   });
   if (kept.length !== rows.length) saveNotices_(kept);
