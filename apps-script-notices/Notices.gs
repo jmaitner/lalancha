@@ -23,7 +23,16 @@ var PROPS = PropertiesService.getScriptProperties();
 /** Web app entry (this project only serves notices). GET ?action=notices. */
 function doGet(e) {
   var action = e && e.parameter ? e.parameter.action : null;
+  var key = e && e.parameter ? e.parameter.key : null;
   if (action === 'notices') return json_(getNoticesPayload_());
+  // Keyed manual kick/diagnostic: runs one ingest and returns the result (or the
+  // caught error). Normal refresh is the 15-min trigger; this is for setup/debug.
+  if (action === 'refresh' && key === NOTICES_CFG.REFRESH_KEY) {
+    var hadTrigger = ensureIngestTrigger_();
+    var res = ingestNotices();
+    res.triggerAlreadyInstalled = hadTrigger;
+    return json_(res);
+  }
   return json_({ ok: true, service: 'La Lancha Notices' });
 }
 function json_(obj) {
@@ -39,6 +48,7 @@ var NOTICES_CFG = {
   POLL_MINUTES: 15,
   STORE_NAME: 'La Lancha — Notices (Coast Guard)',
   MAX_SUMMARY: 240,
+  REFRESH_KEY: 'lancha-refresh-8x2', // gate for the manual ?action=refresh kick/diagnostic
 
   // --- Chicago relevance config (tune here, nowhere else) ---
   // Hard state exclusions keyed off the "TYPE/STATE - ..." title structure.
@@ -78,9 +88,16 @@ function setupNotices() {
   Logger.log('Notices: setup complete, polling every %s min.', NOTICES_CFG.POLL_MINUTES);
 }
 
+/** Ensure the 15-min ingestion trigger exists (idempotent). Returns true if already present. */
+function ensureIngestTrigger_() {
+  var has = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'ingestNotices'; });
+  if (!has) ScriptApp.newTrigger('ingestNotices').timeBased().everyMinutes(NOTICES_CFG.POLL_MINUTES).create();
+  return has;
+}
+
 /** Trigger target: fetch feeds, classify, upsert. Failure-safe per source. */
 function ingestNotices() {
-  var summary = { bnm: null, lnm: null };
+  var summary = { ok: true, bnm: null, lnm: null, bnmError: null, lnmError: null };
   // BNM — the primary, fully-parsed source.
   try {
     var raw = fetchFeed_(NOTICES_CFG.BNM_RSS_URL);
@@ -100,6 +117,8 @@ function ingestNotices() {
     Logger.log('Notices BNM: fetched %s | Chicago %s | excluded %s | needs_review %s | cancellations %s',
       raw.length, counts.inc, counts.exc, counts.nr, counts.canc);
   } catch (err) {
+    summary.ok = false;
+    summary.bnmError = String((err && err.stack) || err);
     Logger.log('Notices BNM fetch FAILED (keeping existing): ' + err);
   }
   // LNM — weekly PDFs only; v1 surfaces one "current weekly LNM" reference.
@@ -107,6 +126,7 @@ function ingestNotices() {
     ingestLnmReference_();
     PROPS.setProperty('NOTICES_LAST_LNM_SYNC', new Date().toISOString());
   } catch (err) {
+    summary.lnmError = String((err && err.stack) || err);
     Logger.log('Notices LNM fetch FAILED (keeping existing): ' + err);
   }
   pruneRetention_();

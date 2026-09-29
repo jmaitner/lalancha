@@ -6,7 +6,7 @@ export const ENDPOINT =
 // Standalone "La Lancha Notices" Apps Script web-app URL — a SEPARATE project from
 // the booking backend above. Paste its /exec URL here after deploying
 // apps-script-notices/. Empty = the /notices page shows a "being set up" state.
-export const NOTICES_ENDPOINT = '';
+export const NOTICES_ENDPOINT = 'https://script.google.com/macros/s/AKfycbylw90Zri14CZ9xXZoobWtY8h9xRvCr5AXessPwSq7FN_HLc8xSZ5VTNsT4Vy-TJ6dX/exec';
 
 export const BUSINESS = 'La Lancha';
 export const BOAT = 'Quarters';
