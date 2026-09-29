@@ -31,20 +31,20 @@ export const destinations: Destination[] = [
     description:
       "Charter Quarters out to The Playpen, Chicago's famous boat-party anchorage off Ohio Street Beach. Raft up, swim, and soak in the skyline. Private charters from Diversey Harbor.",
     intro:
-      'If you only do one thing on the water in Chicago, make it The Playpen. Known to locals as "the Pen," it\'s the floating block party just off Ohio Street Beach where boats raft up, music plays, and the skyline does the rest. It\'s the reason this is our top pick and the easiest way to feel like you have the whole lake to yourself, together with everyone else.',
+      'If you only do one thing on the water in Chicago, make it The Playpen. Locals call it "the Pen," and it\'s a floating block party just off Ohio Street Beach where boats raft up, music plays, and the skyline does the rest.',
     sections: [
       { h: 'Why it earns Top Pick',
         p: "The Playpen is pure Chicago summer: warm, shallow-feeling water inside a protected pocket, boats tied together, people swimming between them, and the skyline standing tall behind it all. It's social, it's sunny, and it's the best people-watching on the lake." },
       { h: 'What a day at the Pen looks like',
         p: "We push off from our Diversey Harbor slip and it's a short, scenic cruise down the lakefront to the anchorage. Once we're in, you swim, float, sun, snack, and vibe. Your captain handles the anchoring and keeps everything safe. You just enjoy it." },
       { h: 'Bring your own whatever',
-        p: "Because Quarters is a bareboat charter, the day is yours to stock. Pack a cooler, your favorite drinks, snacks, a speaker, and floaties. We'll take care of the boat and the captain." },
+        p: "Because Quarters is a bareboat charter, the day is yours to stock. Pack a cooler, your favorite drinks, snacks, a speaker, and floaties. We'll have Quarters clean and ready at the dock." },
     ],
     bestFor: ['Birthdays & bachelor / bachelorette parties', 'Big social groups', 'Swimming & floating', 'Soaking up the sun'],
-    goodToKnow: ['~10-15 min cruise from our Diversey Harbor slip', 'Best on warm, calm afternoons', 'The Afternoon block (2:30-6:30 PM) is prime', 'Bring towels, sunscreen, and a cooler'],
+    goodToKnow: ['10 to 15 minutes from our Diversey Harbor slip', 'Best on warm, calm afternoons', 'The Afternoon block (2:30-6:30 PM) is prime', 'Bring towels, sunscreen, and a cooler'],
     faqs: [
       { q: 'What is the Playpen in Chicago?', a: 'The Playpen is a popular boat anchorage on Lake Michigan just off Ohio Street Beach and Streeterville, where boats raft up together for a social, party-style day on the water. Locals call it "the Pen."' },
-      { q: 'Can you swim at the Playpen?', a: "Yes. Swimming and floating between rafted boats is the whole point. Your USCG-licensed captain anchors safely so you can hop in and enjoy the water." },
+      { q: 'Can you swim at the Playpen?', a: "Yes. Swimming and floating between rafted boats is the whole point. Your licensed captain anchors safely so you can hop in and enjoy the water." },
       { q: 'How long does it take to get to the Playpen from Diversey Harbor?', a: 'Roughly 10-15 minutes by boat, so you spend more of your charter actually at the anchorage.' },
     ],
   },
@@ -66,7 +66,7 @@ export const destinations: Destination[] = [
         p: "The point by the Adler Planetarium is the spot. Turn back toward the city and the entire skyline lines up in front of you, water in the foreground, towers behind. It's the photo everyone wants and the view that makes people fall for Chicago." },
       { h: 'Golden hour is unreal',
         p: "Book the late-afternoon or evening window and watch the buildings catch the light and then start to glow as the sun drops. Quiet water, warm colors, big city. Hard to beat." },
-      { h: 'Easy, scenic cruising',
+      { h: 'Easy & scenic cruising',
         p: "The run down the lakefront is part of the fun, passing the harbors and beaches along the way. Smooth, scenic, and great for a relaxed group that wants to take it all in." },
     ],
     bestFor: ['First-timers', 'Skyline photos', 'Sunset cruises', 'Couples & date days'],
@@ -95,7 +95,7 @@ export const destinations: Destination[] = [
       { h: 'Fireworks from the best seats in the house',
         p: "In summer, Navy Pier launches fireworks on Wednesday and Saturday nights. From the water you get an unobstructed, reflection-on-the-lake view that beats any spot on land. The Night block is made for this." },
       { h: 'Short and sweet',
-        p: "Short on time but want the quintessential Chicago moment? This is it: a compact trip that still delivers the icon, the lights, and the lake." },
+        p: "Short on time and still want the quintessential Chicago moment? This is it: a compact trip that still delivers the icon, the lights, and the lake." },
     ],
     bestFor: ['Fireworks nights', 'Short outings', 'Visitors & first-timers', 'Evening cruises'],
     goodToKnow: ['Summer fireworks: Wednesdays & Saturdays', 'The Night block (7-11 PM) lines up with showtime', 'A short cruise from Diversey Harbor', 'Bring a layer. It cools off after dark on the water.'],
@@ -118,7 +118,7 @@ export const destinations: Destination[] = [
     intro:
       "Burnham is the laid-back side of the lakefront. Tucked behind Northerly Island near the Museum Campus, the water here is calmer and the views are wide open: skyline on one side, lake on the other. It's the pick for a relaxed cruise, a nervous first-timer, or a mellow group that just wants to drift and take it in.",
     sections: [
-      { h: 'Calmer water, easy vibes',
+      { h: 'Calmer water & easy vibes',
         p: "The protected stretch around Burnham Harbor and Northerly Island tends to be smoother than the open lake, perfect if anyone in your crew is new to boating or just wants a gentle, low-key day." },
       { h: 'Skyline meets nature',
         p: "You get the best of both: the downtown skyline and Museum Campus on one side, and the open green of Northerly Island and the lake on the other. Wide, calm, and photogenic." },
@@ -126,7 +126,7 @@ export const destinations: Destination[] = [
         p: "When the lakeside pavilion has a show, the area comes alive. Some nights you can take in the city, the sunset, and a little music drifting across the water." },
     ],
     bestFor: ['Relaxed cruising', 'Nervous first-timers', 'Calmer days', 'Concert nights at the pavilion'],
-    goodToKnow: ['Protected, generally calmer water', 'Skyline + Museum Campus backdrop', 'Great for a mellow group or mixed ages', 'Any block works. Sunsets here are excellent.'],
+    goodToKnow: ['Protected, generally calmer water', 'Skyline & Museum Campus backdrop', 'Great for a mellow group or mixed ages', 'Any block works. Sunsets here are excellent.'],
     faqs: [
       { q: 'Is Burnham Harbor a good spot for first-time boaters?', a: 'Yes. The water around Burnham Harbor and Northerly Island is more protected and tends to be calmer than the open lake, making it a comfortable choice for anyone new to boating.' },
       { q: 'What can you see from Burnham and Northerly Island?', a: "You get sweeping views of the downtown skyline and Museum Campus on one side and the open lake and Northerly Island's green space on the other." },
@@ -154,7 +154,7 @@ export const destinations: Destination[] = [
         p: "Kids love the bridges and the boats; adults love the architecture and the calm. Bring snacks, bring the family, and make a relaxed afternoon of it." },
     ],
     bestFor: ['Families & all ages', 'Architecture lovers', 'Calm-water cruising', 'Relaxed afternoons'],
-    goodToKnow: ['Flat, protected, no-wake water', 'The most family-friendly route we run', 'Great in the Morning or Afternoon block', 'Easy on anyone prone to motion on open water'],
+    goodToKnow: ['Flat, protected, no-wake water', 'Includes a pass through the Chicago Harbor Lock', 'The most family-friendly route we run', 'Great in the Morning or Afternoon block', 'Easy on anyone who gets seasick'],
     faqs: [
       { q: 'Is a Chicago River boat charter good for kids and families?', a: 'Very. The river is calm, flat, protected water at a relaxed pace, which makes it the most comfortable and family-friendly route, suitable for all ages.' },
       { q: 'Can you see the Chicago architecture on a private charter?', a: "Yes. A private charter on the river takes you right through downtown's famous architecture at your own pace, without the crowds of a packed tour boat." },
