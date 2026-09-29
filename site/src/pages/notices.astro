@@ -4,14 +4,14 @@ import { NOTICES_ENDPOINT } from '../config.ts';
 
 const title = 'Chicago Notice to Mariners · lancha boat';
 const description =
-  'U.S. Coast Guard and Chicago Harbor Safety Committee notices for Chicago boaters, covering the harbors, the lakefront, and the Chicago River. Refreshed every 15 minutes.';
+  'Current U.S. Coast Guard Broadcast Notices to Mariners filtered for Chicago-area boaters — harbors, the lakefront, and the Chicago River. Check before you leave the dock.';
 ---
 <Base title={title} description={description}>
   <section class="wrap intro-sec">
     <p class="kicker">Chicago · Lake Michigan</p>
     <h1>Notice to Mariners</h1>
-    <p class="lede">Safety zones, lock closures, dark lights, and river events on Chicago waters,
-      in one list you can read in ten seconds before you leave the dock.</p>
+    <p class="lede">A live aggregator of the Coast Guard broadcast and local notices, plus other
+      relevant Chicago harbor feeds — pulled together in one place for the water we run.</p>
     <p class="hero-credit">Brought to you by
       <a href="https://www.instagram.com/luisvecchio/" target="_blank" rel="noopener">Luis</a> and Shir</p>
   </section>
@@ -21,17 +21,12 @@ const description =
       <!-- intro callout -->
       <div class="callout">
         <p class="callout-head">Why this page exists</p>
-        <p class="callout-body">The U.S. Coast Guard publishes navigation notices for the entire Great Lakes,
-          so the few that matter in Chicago get buried. This page keeps only the ones that touch the water
-          we run: Chicago's harbors, the lakefront, and the river. It adds the Chicago Harbor Safety
-          Committee's posts and refreshes every 15 minutes.</p>
-        <p class="callout-fine">
-          BNM (Broadcast Notice to Mariners): time-sensitive Coast Guard safety notices.<br />
-          LNM (Local Notice to Mariners): the Coast Guard's weekly navigation roundup.<br />
-          Harbor: Chicago Harbor Safety Committee posts on boat runs, bridge lifts, and projects.
-        </p>
-        <p class="callout-fine muted">lancha boat runs this page independently of the U.S. Coast Guard.
-          Always confirm critical navigation information with
+        <p class="callout-body">The broadcast and local notices cover the entire Great Lakes — the Lake
+          Michigan one alone can run 50-plus pages. You don't need a new buoy in Holland to run Chicago.
+          This pulls only what touches our water: the harbors, the lakefront, and the river — live, and
+          refreshed every 15 minutes.</p>
+        <p class="callout-fine muted">lancha boat runs this page independently of the U.S. Coast Guard. Always
+          confirm critical navigation information with
           <a href="https://www.navcen.uscg.gov/" target="_blank" rel="noopener">official Coast Guard sources</a>.</p>
       </div>
 
@@ -48,10 +43,6 @@ const description =
       <div class="notice-feed" id="feed">
         <p class="feed-msg muted" id="feed-msg">Loading current Chicago notices…</p>
       </div>
-    </div>
-    <div class="cta-row">
-      <p class="cta-line">Water looks good? Grab your crew and get out there.</p>
-      <a class="btn" href="/book">Check dates &amp; book →</a>
     </div>
   </section>
 
@@ -77,106 +68,29 @@ const description =
     }
     const esc = (s) => (s || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-    // ── Readability: the Coast Guard feed arrives in all caps, numbered, and
-    // signed off with "BT". Everything below turns it into plain sentences.
-    const MONTHS = ['january','february','march','april','may','june','july','august','september','october','november','december'];
-    const DAYS = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
-    const ALWAYS = { 'coast guard': 'Coast Guard', 'us army corps of engineers': 'U.S. Army Corps of Engineers',
-      'army corps of engineers': 'Army Corps of Engineers', 'lake michigan': 'Lake Michigan', 'great lakes': 'Great Lakes',
-      'michigan city': 'Michigan City', 'chicago': 'Chicago', 'illinois': 'Illinois', 'indiana': 'Indiana', 'wisconsin': 'Wisconsin' };
-    const TYPOS = { exstinguished: 'extinguished', constructon: 'construction', occuring: 'occurring', amtrack: 'Amtrak' };
-    // A run of words ending in one of these is a place name ("wilson avenue breakwater light").
-    const PLACE_END = 'street|st|avenue|ave|bridge|beach|harbor|river|branch|lock|point|park|light|breakwater|canal|island|riverwalk|pier';
-    const STOP = new Set(['the','of','a','an','at','on','in','and','near','from','to','between','by','for','into','with','will','be','is','has','that','this','their','its','over','under','across','along']);
-    const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1);
-
-    function tidy(raw) {
-      let t = (raw || '').replace(/^\s*\d+\.\s*/, '').replace(/\s*\bBT\b\s*(…?)\s*$/, '$1').trim();
-      if (t !== t.toUpperCase()) return t; // already human-written (Harbor posts)
-      t = t.toLowerCase().replace(/\b[a-z]+\b/g, (w) => TYPOS[w] || w);
-      t = t.replace(new RegExp(`\\b(${MONTHS.concat(DAYS).join('|')})\\b`, 'g'), cap);
-      for (const [k, v] of Object.entries(ALWAYS)) t = t.replace(new RegExp(`\\b${k}\\b`, 'g'), v);
-      t = t.replace(new RegExp(`((?:\\b[a-z]+\\s+){1,3})(${PLACE_END})\\b`, 'gi'), (m, lead, end) => {
-        const words = lead.trim().split(/\s+/);
-        let i = words.length;
-        while (i > 0 && !STOP.has(words[i - 1].toLowerCase())) i--;
-        if (i === words.length) return m; // nothing but "the river": leave it alone
-        return words.slice(0, i).concat(words.slice(i).map(cap)).join(' ') + ' ' + cap(end);
-      });
-      t = t.replace(/\b(llnr|mm|vhf|il|in|wi)\b(?=[\s.,)])/g, (w) => (w === 'in' ? w : w.toUpperCase()));
-      t = t.replace(/\b(u\.?s\.?)\s+(army|coast)/g, 'U.S. $2');
-      return t.replace(/(^|[.?]\s+)([a-z])/g, (m, p, c) => p + c.toUpperCase());
-    }
-    function tidyTitle(s) {
-      return (s || '').replace(/\s+[—–]\s+/g, ': ').replace(/chicagoharbor/i, 'Chicago Harbor')
-        .replace(/lake front/i, 'Lakefront').trim();
-    }
-
-    // ── Dates: pull "SEPTEMBER 26, 2026" style dates out of the text so we can
-    // say when it happens and move finished events below the current ones.
-    const todayKey = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
-    const monthRe = new RegExp(`\\b(${MONTHS.join('|')})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?`, 'gi');
-    function eventDates(n) {
-      const fallbackYear = (n.publishedAt || '').slice(0, 4) || todayKey.slice(0, 4);
-      const keys = new Set();
-      for (const m of (n.summary || '').matchAll(monthRe)) {
-        const mo = String(MONTHS.indexOf(m[1].toLowerCase()) + 1).padStart(2, '0');
-        keys.add(`${m[3] || fallbackYear}-${mo}-${m[2].padStart(2, '0')}`);
-      }
-      return [...keys].sort();
-    }
-    const fmtKey = (k) => dayf.format(new Date(k + 'T12:00:00'));
-    function isPast(n, dates) {
-      if (!dates.length || dates[dates.length - 1] >= todayKey) return false;
-      // A cut-off summary may hide a later end date, so only one-day events
-      // are called finished on dates alone.
-      const truncated = /…\s*$/.test(n.summary || '');
-      return !truncated || /safety zone|marine event/i.test(n.category || '');
-    }
-
-    function card(n) {
-      let posted = '';
-      try { posted = dtf.format(new Date(n.publishedAt)); } catch (e) {}
-      const badge = n.source === 'CHSC' ? 'Harbor' : (n.source === 'LNM' ? 'LNM' : 'BNM');
-      const d = n._dates;
-      const whenTxt = d.length ? (d.length === 1 ? fmtKey(d[0]) : `${fmtKey(d[0])} to ${fmtKey(d[d.length - 1])}`) : '';
-      const flag = n._state === 'cancelled' ? '<span class="state-badge canc">Cancelled</span>'
-        : n._state === 'past' ? '<span class="state-badge past">Ended</span>' : '';
-      return `<article class="notice is-${n._state}">
-        <h3>${esc(tidyTitle(n.title))}</h3>
-        <p class="notice-meta"><span class="src ${badge.toLowerCase()}">${badge}</span>Posted ${esc(posted)}${flag}</p>
-        ${whenTxt ? `<p class="notice-area"><span>When</span> ${esc(whenTxt)}</p>` : ''}
-        ${n.summary ? `<p class="notice-sum">${esc(tidy(n.summary))}</p>` : ''}
-        ${n.officialUrl ? `<a class="notice-link" href="${esc(n.officialUrl)}" target="_blank" rel="noopener">Read the official notice →</a>` : ''}
-      </article>`;
-    }
-
-    function prepare(list) {
-      return list.map((n) => {
-        const _dates = eventDates(n);
-        const _state = n.status === 'cancelled' ? 'cancelled' : (isPast(n, _dates) ? 'past' : 'current');
-        return { ...n, _dates, _state };
-      });
-    }
-
     function render() {
       const list = current === 'all' ? ALL : ALL.filter((n) => n.source === current);
       if (!ALL.length) {
-        feed.innerHTML = `<div class="empty"><p class="empty-h">All clear on Chicago waters</p>
-          <p class="muted">We checked the last 30 days of notices, and none touch Chicago's harbors, the lakefront, or the river.</p>
+        feed.innerHTML = `<div class="empty"><p class="empty-h">No current Chicago notices</p>
+          <p class="muted">No Chicago-area notices matching our filters have been published in the last 30 days.</p>
           <p><a href="https://www.navcen.uscg.gov/broadcast-notice-to-mariners" target="_blank" rel="noopener">Check the official Coast Guard notices →</a></p></div>`;
         return;
       }
-      if (!list.length) {
-        const lbl = current === 'CHSC' ? 'Harbor' : current;
-        feed.innerHTML = `<p class="feed-msg muted">Nothing under ${lbl} right now. Tap All to see every notice.</p>`; return;
-      }
-      const live = list.filter((n) => n._state === 'current');
-      const done = list.filter((n) => n._state !== 'current');
-      feed.innerHTML =
-        `<p class="feed-group">In effect &amp; coming up · ${live.length}</p>` +
-        (live.length ? live.map(card).join('') : '<p class="feed-msg muted">All clear here. Everything below has wrapped up.</p>') +
-        (done.length ? `<p class="feed-group done">Recently ended or cancelled · ${done.length}</p>` + done.map(card).join('') : '');
+      if (!list.length) { feed.innerHTML = `<p class="feed-msg muted">No ${current} notices right now.</p>`; return; }
+      feed.innerHTML = list.map((n) => {
+        let when = '';
+        try { when = dtf.format(new Date(n.publishedAt)); } catch (e) {}
+        const badge = n.source === 'CHSC' ? 'Harbor' : (n.source === 'LNM' ? 'LNM' : 'BNM');
+        const cat = n.category ? ` · ${esc(n.category)}` : '';
+        const cancelled = n.status === 'cancelled';
+        return `<article class="notice${cancelled ? ' is-cancelled' : ''}">
+          <h3>${esc(n.title)}</h3>
+          <p class="notice-meta"><span class="src ${badge.toLowerCase()}">${badge}</span>${cat} · ${esc(when)}${cancelled ? ' · <span class="canc-badge">Cancelled</span>' : ''}</p>
+          ${n.summary ? `<p class="notice-sum">${esc(n.summary)}</p>` : ''}
+          ${n.area ? `<p class="notice-area"><span>Area</span> ${esc(n.area)}</p>` : ''}
+          ${n.officialUrl ? `<a class="notice-link" href="${esc(n.officialUrl)}" target="_blank" rel="noopener">View official notice →</a>` : ''}
+        </article>`;
+      }).join('');
     }
 
     filters.addEventListener('click', (e) => {
@@ -195,11 +109,11 @@ const description =
       try {
         const res = await fetch(`${NOTICES_ENDPOINT}?action=notices`, { method: 'GET' });
         const data = await res.json();
-        ALL = prepare((data && data.notices) || []);
+        ALL = (data && data.notices) || [];
         updatedEl.textContent = data && data.updated ? `Updated ${ago(data.updated)}` : '';
         render();
       } catch (err) {
-        feedMsg.innerHTML = `The live feed is slow to respond right now. In the meantime, check the
+        feedMsg.innerHTML = `We couldn't reach the live notice feed right now. Please check the
           <a href="https://www.navcen.uscg.gov/broadcast-notice-to-mariners" target="_blank" rel="noopener">official Coast Guard source</a>.`;
       }
     })();
@@ -216,8 +130,7 @@ const description =
     .callout-head { font-family: var(--display); font-weight: 800; font-size: 20px; margin: 0 0 8px; }
     .callout-body { font-size: 15px; line-height: 1.55; margin: 0 0 10px; max-width: 720px; }
     .callout-fine { font-size: 13px; line-height: 1.5; margin: 0 0 6px; }
-    .cta-row { margin: 28px 0 0; }
-    .cta-line { font-family: var(--display); font-weight: 700; font-size: 18px; margin: 0 0 12px; }
+    .callout-fine strong { color: var(--blue); }
     .callout-fine:last-child { margin-bottom: 0; }
 
     .filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 14px 24px; border-bottom: 2px solid var(--line); }
@@ -257,15 +170,10 @@ const description =
     #feed .notice-area { font-size: 13px; margin: 0 0 8px; color: var(--ink); }
     #feed .notice-area span { font-weight: 700; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; color: #8a8470; margin-right: 4px; }
     #feed .notice-link { font-weight: 700; font-size: 14px; color: var(--blue); }
-    #feed .feed-group { font-family: var(--display); font-weight: 800; font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
-                        color: var(--blue); margin: 14px 0 0; padding-bottom: 6px; border-bottom: 2px solid var(--ink); }
-    #feed .feed-group.done { color: #8a8470; margin-top: 28px; border-bottom-color: var(--line); }
-    #feed .notice.is-past, #feed .notice.is-cancelled { opacity: .62; }
+    #feed .notice.is-cancelled { opacity: .66; }
     #feed .notice.is-cancelled h3 { text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: #b23a3a; }
-    #feed .state-badge { font-family: var(--display); font-weight: 700; font-size: 11px; letter-spacing: .05em; text-transform: uppercase;
-                         border: 2px solid; border-radius: 999px; padding: 1px 8px; margin-left: 8px; }
-    #feed .state-badge.canc { color: #b23a3a; }
-    #feed .state-badge.past { color: #8a8470; }
+    #feed .canc-badge { font-family: var(--display); font-weight: 700; font-size: 11px; letter-spacing: .05em; text-transform: uppercase;
+                        color: #b23a3a; border: 2px solid #b23a3a; border-radius: 999px; padding: 1px 8px; margin-left: 2px; }
     #feed .empty { padding: 34px 8px; text-align: center; }
     #feed .empty-h { font-family: var(--display); font-weight: 800; font-size: 20px; margin: 0 0 6px; }
     #feed .muted { color: #8a8470; }
