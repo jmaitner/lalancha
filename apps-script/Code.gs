@@ -77,7 +77,7 @@ const CONFIG = {
   // deployment for its version and compares: the editor runs HEAD while /exec
   // serves the last DEPLOYED version, so the two drift apart silently every
   // time code is pasted without redeploying.
-  CODE_VERSION: '2026-09-29.1',
+  CODE_VERSION: '2026-09-29.2',
   STRIPE_INVOICE_URL: 'https://dashboard.stripe.com/invoices/create',
   // Automatic Stripe invoicing. OFF until a restricted API key is stored in
   // Script Properties as STRIPE_SECRET_KEY (Project Settings > Script Properties).
@@ -1441,7 +1441,7 @@ function sendDeclinedEmail_(b, bookingId) {
       '<p>Sorry, we cannot take ' + esc_(b.CharterDate) + ' &middot; ' + esc_(b.TimeBlock) +
         '. Nothing has been charged.</p>' +
       '<p>Other dates are likely wide open, so it is worth another look: ' +
-        '<a href="https://la-lancha.com/' + (isExperience_(b) ? 'experiences' : 'book') + '">check availability</a>. Or just reply here and we will ' +
+        '<a href="https://lanchaboat.com/' + (isExperience_(b) ? 'experiences' : 'book') + '">check availability</a>. Or just reply here and we will ' +
         'find you something that works.</p>' +
       '<p>&mdash; ' + CONFIG.BUSINESS_NAME + '</p>'),
     CONFIG.OWNER_EMAIL);

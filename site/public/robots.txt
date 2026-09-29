@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://la-lancha.com/sitemap-index.xml
+Sitemap: https://lanchaboat.com/sitemap-index.xml
